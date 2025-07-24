@@ -51,6 +51,10 @@ class VRMData:
 def index():
     return render_template('index.html')
 
+@app.route('/testing')
+def test():
+    return render_template('test.html')
+
 @app.route('/api/health')
 def health():
     # Test RAG endpoint connectivity

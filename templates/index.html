@@ -5,13 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI VRM Chat - Looking Glass Go</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
-    <!-- Local JavaScript files to avoid CORB errors -->
+    <!-- Load Three.js first -->
     <script src="{{ url_for('static', filename='js/three.min.js') }}"></script>
     <script src="{{ url_for('static', filename='js/GLTFLoader.js') }}"></script>
     <script src="{{ url_for('static', filename='js/DRACOLoader.js') }}"></script>
     <script src="{{ url_for('static', filename='js/OrbitControls.js') }}"></script>
     <script src="{{ url_for('static', filename='js/lookingglass-web.min.js') }}"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
+    <script src="https://cdn.skypack.dev/@lookingglass/webxr@0.6.0"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     
     <!-- Initialize Three.js loaders -->
@@ -170,5 +171,10 @@
     </div>
 
     <script src="{{ url_for('static', filename='app.js') }}"></script>
+    <!-- Polyfill for Node.js process object -->
+    <script>
+        window.process = { env: {} };
+    </script>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
 </body>
 </html> 
