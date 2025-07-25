@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI VRM Chat - Looking Glass Go</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <!-- Load Three.js first -->
+    <script src="{{ url_for('static', filename='js/three.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/GLTFLoader.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/DRACOLoader.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/OrbitControls.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/lookingglass-web.min.js') }}"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
+    <script src="https://cdn.skypack.dev/@lookingglass/webxr@0.6.0"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    
+    <!-- Initialize Three.js loaders -->
+    <script>
+        // Attach loaders to THREE object
+        if (typeof THREE !== 'undefined') {
+            THREE.GLTFLoader = GLTFLoader;
+            THREE.DRACOLoader = DRACOLoader;
+            THREE.OrbitControls = OrbitControls;
+        }
+    </script>
+</head>
+<body>
+    <!-- Particle Effects -->
+    <div class="particles" id="particles"></div>
+
+    <div class="container">
+        <!-- Header -->
+        <header class="header floating">
+            <div class="holographic-glow">
+                <h1><i class="fas fa-robot"></i> AI VRM Chat</h1>
+            </div>
+            <p><i class="fas fa-vr-cardboard"></i> Powered by Looking Glass Go</p>
+            <div class="status-indicator">
+                <span id="connection-status" class="status offline">
+                    <i class="fas fa-wifi"></i> Offline
+                </span>
+                <span id="vrm-status" class="status offline">
+                    <i class="fas fa-cube"></i> VRM Loading...
+                </span>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <!-- Looking Glass Display -->
+            <div class="looking-glass-container holographic-glow">
+                <div class="display-header">
+                    <h3><i class="fas fa-eye"></i> Holographic Display</h3>
+                    <div class="display-info">
+                        <span class="info-item"><i class="fas fa-cube"></i> VRM Model</span>
+                        <span class="info-item"><i class="fas fa-motion"></i> Real-time</span>
+                    </div>
+                </div>
+                
+                <div id="looking-glass-display">
+                    <div class="display-placeholder">
+                        <i class="fas fa-cube fa-3x"></i>
+                        <p>Loading VRM Model...</p>
+                    </div>
+                </div>
+                
+                <div class="vrm-controls">
+                    <button id="reset-camera" class="control-btn">
+                        <i class="fas fa-camera"></i> Reset Camera
+                    </button>
+                    <button id="toggle-animation" class="control-btn">
+                        <i class="fas fa-play"></i> Toggle Animation
+                    </button>
+                    <button id="change-expression" class="control-btn">
+                        <i class="fas fa-smile"></i> Change Expression
+                    </button>
+                </div>
+            </div>
+
+            <!-- Chat Interface -->
+            <div class="chat-container holographic-glow">
+                <div class="chat-header">
+                    <h3><i class="fas fa-comments"></i> AI Conversation</h3>
+                    <div class="chat-info">
+                        <span class="info-item"><i class="fas fa-brain"></i> RAG Powered</span>
+                        <span class="info-item"><i class="fas fa-microphone"></i> Voice Ready</span>
+                    </div>
+                </div>
+
+                <div class="chat-messages" id="chat-messages">
+                    <div class="message system">
+                        <div class="message-content">
+                            <i class="fas fa-robot"></i> Welcome to AI VRM Chat! Ask me anything and I'll respond through the holographic display.
+                        </div>
+                    </div>
+                </div>
+
+                <div class="chat-input-container">
+                    <div class="input-group">
+                        <div class="input-wrapper">
+                            <i class="fas fa-pen input-icon"></i>
+                            <input type="text" id="chat-input" placeholder="Type your message or use voice..." />
+                        </div>
+                        <button id="send-btn" class="send-btn">
+                            <i class="fas fa-paper-plane"></i>
+                        </button>
+                    </div>
+                    <div class="voice-controls">
+                        <button id="voice-btn" class="voice-btn">
+                            <span class="mic-icon"><i class="fas fa-question"></i></span>
+                            <span class="mic-text">Click to Ask</span>
+                        </button>
+                        <div class="voice-status" id="voice-status"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Settings Panel -->
+        <div class="settings-panel" id="settings-panel">
+            <h3><i class="fas fa-cog"></i> Settings</h3>
+            <div class="setting-group">
+                <label for="voice-select"><i class="fas fa-volume-up"></i> AI Voice:</label>
+                <select id="voice-select">
+                    <option value="Joanna">Joanna (Female)</option>
+                    <option value="Matthew">Matthew (Male)</option>
+                    <option value="Salli">Salli (Female)</option>
+                    <option value="Justin">Justin (Male)</option>
+                </select>
+            </div>
+            <div class="setting-group">
+                <label for="animation-speed"><i class="fas fa-tachometer-alt"></i> Animation Speed:</label>
+                <input type="range" id="animation-speed" min="0.5" max="2" step="0.1" value="1">
+            </div>
+            <div class="setting-group">
+                <label for="volume"><i class="fas fa-volume-up"></i> Volume:</label>
+                <input type="range" id="volume" min="0" max="1" step="0.1" value="0.7">
+            </div>
+            <button id="toggle-settings" class="settings-toggle">
+                <i class="fas fa-cog"></i>
+            </button>
+        </div>
+
+        <!-- Loading Overlay -->
+        <div class="loading-overlay" id="loading-overlay">
+            <div class="loading-content">
+                <div class="spinner"></div>
+                <h3><i class="fas fa-robot"></i> Initializing AI VRM Chat</h3>
+                <p><i class="fas fa-vr-cardboard"></i> Connecting to Looking Glass Go...</p>
+                <div class="loading-steps">
+                    <div class="step active"><i class="fas fa-check"></i> Loading Interface</div>
+                    <div class="step"><i class="fas fa-spinner fa-spin"></i> Connecting to RAG</div>
+                    <div class="step"><i class="fas fa-clock"></i> Initializing VRM</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="quick-actions">
+            <button class="quick-btn" id="test-rag-btn" title="Test RAG Endpoint">
+                <i class="fas fa-brain"></i>
+            </button>
+            <button class="quick-btn" id="health-check-btn" title="Health Check">
+                <i class="fas fa-heartbeat"></i>
+            </button>
+            <button class="quick-btn" id="clear-chat-btn" title="Clear Chat">
+                <i class="fas fa-trash"></i>
+            </button>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='app.js') }}"></script>
+    <!-- Polyfill for Node.js process object -->
+    <script>
+        window.process = { env: {} };
+    </script>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html> 
