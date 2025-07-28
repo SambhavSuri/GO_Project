@@ -18,8 +18,7 @@ console.log('✅ Scene created');
 // Update camera
 const camera = new THREE.PerspectiveCamera(30.0, window.innerWidth / window.innerHeight, 0.1, 20.0);
 camera.position.set(0.0, 1.0, 2.73);
-scene.add(camera);
-console.log('�� Camera created and positioned');
+console.log('📷 Camera created and positioned');
 
 // helperRoot
 const helperRoot = new THREE.Group();
@@ -108,7 +107,7 @@ loader.load(
     console.log('✅ VRM model added to scene');
     
     // Play animation after VRM loads
-    playAnimation('/static/animations/idleMale.fbx'); // Change this to your animation file
+    playAnimation('/static/animations/talking.fbx'); // Change this to your animation file
     
     render(); // Initial render
   },
@@ -169,6 +168,23 @@ function render() {
 const vrButton = VRButton.createButton(renderer);
 document.body.appendChild(vrButton);
 console.log('✅ VR button added to body');
+
+// Add XR session handling for Looking Glass
+function StartXRSession() {
+    // Reposition UI for clear viewing in Looking Glass
+    uiRoot.position.x = 0.8;
+    uiRoot.position.z = 0.5;
+    console.log('✅ XR Session started - UI repositioned for Looking Glass');
+}
+
+function EndXRSession() {
+    // Reload page on XR Session end to fix view
+    console.log('XR Session Ended. Reloading page...');
+    location.reload();
+}
+
+renderer.xr.addEventListener('sessionstart', StartXRSession);
+renderer.xr.addEventListener("sessionend", EndXRSession);
 
 function resize() {
   renderer.setSize(innerWidth, innerHeight);
