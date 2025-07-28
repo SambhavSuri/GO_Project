@@ -1,7 +1,8 @@
 import {
+	Vector2,
 	Vector3,
 	Vector4
-} from 'three';
+} from '../../../build/three.module.js';
 
 /**
  * @module NURBSUtils

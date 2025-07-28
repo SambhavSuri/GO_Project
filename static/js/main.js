@@ -5,11 +5,40 @@ import {
   LookingGlassWebXRPolyfill,
   LookingGlassConfig
 } from "https://cdn.skypack.dev/@lookingglass/webxr@0.6.0";
+import { VRMLoaderPlugin } from './three-vrm.module.min.js';
+import { loadMixamoAnimation } from './loadMixamoAnimation.js';
 
 console.log('🚀 main.js starting...');
 
+// scene
 const scene = new THREE.Scene();
+scene.background = new THREE.Color('#efead7');
 console.log('✅ Scene created');
+
+// Update camera
+const camera = new THREE.PerspectiveCamera(30.0, window.innerWidth / window.innerHeight, 0.1, 20.0);
+camera.position.set(0.0, 1.0, 2.73);
+scene.add(camera);
+console.log('�� Camera created and positioned');
+
+// helperRoot
+const helperRoot = new THREE.Group();
+helperRoot.renderOrder = 10000;
+scene.add(helperRoot);
+
+// UI Root
+const uiRoot = new THREE.Group();
+uiRoot.renderOrder = 99999;
+camera.add(uiRoot);
+
+// camera controls
+let controls;
+
+// light
+const light = new THREE.DirectionalLight(0xffffff, Math.PI);
+light.position.set(1.0, 1.0, 1.0).normalize();
+scene.add(light);
+console.log('✅ Directional light added');
 
 // Initialize Looking Glass configuration
 const config = LookingGlassConfig;
@@ -27,16 +56,60 @@ try {
     console.log('⚠️ Looking Glass WebXR Polyfill warning (non-critical):', error.message);
 }
 
+// Animation variables
+let currentVrm = null;
+let currentMixer = null;
+const clock = new THREE.Clock();
+
+// Play animation function
+function playAnimation(animationPath) {
+    if (!currentVrm) {
+        console.warn('VRM not loaded yet');
+        return;
+    }
+    
+    currentVrm.humanoid.resetNormalizedPose();
+    
+    if (currentMixer) {
+        currentMixer.stopAllAction();
+    }
+    currentMixer = new THREE.AnimationMixer(currentVrm.scene);
+    
+    loadMixamoAnimation(animationPath, currentVrm)
+        .then((clip) => {
+            const action = currentMixer.clipAction(clip);
+            action.play();
+            console.log('✅ Animation playing:', animationPath);
+        })
+        .catch((error) => {
+            console.error('❌ Failed to load animation:', error);
+        });
+}
+
 // Load model
-console.log("🎯 Starting VRM model load...");
+console.log("�� Starting VRM model load...");
 
 const loader = new GLTFLoader();
+loader.register((parser) => {
+    return new VRMLoaderPlugin(parser);
+});
+
 loader.load(
-  '/static/assets/viverse_avatar_model_161376.vrm',
+  '/static/assets/AvatarSample_C.vrm',
   function (gltf) {
     console.log('✅ VRM model loaded successfully:', gltf);
-    scene.add(gltf.scene);
+    
+    // Get VRM object
+    currentVrm = gltf.userData.vrm;
+    let model = currentVrm.scene;
+    
+    scene.add(model);
+    model.rotation.y = Math.PI;
     console.log('✅ VRM model added to scene');
+    
+    // Play animation after VRM loads
+    playAnimation('/static/animations/idleMale.fbx'); // Change this to your animation file
+    
     render(); // Initial render
   },
   function (xhr) {
@@ -47,12 +120,6 @@ loader.load(
     console.error('❌ Error loading VRM model:', error);
   }
 );
-
-// Lighting
-const light = new THREE.DirectionalLight(0xffffff, 1);
-light.position.set(2, 2, 5);
-scene.add(light);
-console.log('✅ Directional light added');
 
 // Add ambient light for better visibility
 const ambientLight = new THREE.AmbientLight(0x404040, 0.5);
@@ -66,41 +133,30 @@ const sizes = {
 };
 console.log('📐 Canvas size:', sizes);
 
-// Camera
-const camera = new THREE.PerspectiveCamera(30, sizes.width / sizes.height, 0.1, 20);
-camera.position.set(0, 1, 2.73);
-scene.add(camera);
-console.log('📷 Camera created and positioned');
-
 // Renderer
-const canvas = document.querySelector('.webgl');
-let renderer;
-
-if (canvas) {
-    console.log('✅ Found webgl canvas, using it for renderer');
-    renderer = new THREE.WebGLRenderer({ 
-        canvas: canvas,
-        antialias: true 
-    });
-} else {
-    console.log('✅ No webgl canvas found, creating new renderer');
-    renderer = new THREE.WebGLRenderer({ antialias: true });
-    document.body.append(renderer.domElement);
-}
+const renderer = new THREE.WebGLRenderer();
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(window.devicePixelRatio);
+renderer.setClearColor(0x000000, 0); // Make renderer background transparent
+document.body.appendChild(renderer.domElement);
 
 renderer.xr.enabled = true;
-renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1;
-renderer.outputEncoding = THREE.sRGBEncoding;
-
-renderer.setSize(sizes.width, sizes.height);
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-renderer.shadowMap.enabled = true;
-renderer.outputEncoding = THREE.sRGBEncoding;
 console.log('✅ Renderer configured');
 
 // Animation Loop
 renderer.setAnimationLoop(() => {
+  const deltaTime = clock.getDelta();
+  
+  // Update animation mixer
+  if (currentMixer) {
+    currentMixer.update(deltaTime);
+  }
+  
+  // Update VRM
+  if (currentVrm) {
+    currentVrm.update(deltaTime);
+  }
+  
   render();
 });
 console.log('✅ Animation loop started');
@@ -124,4 +180,3 @@ window.addEventListener("resize", resize);
 console.log('✅ Resize handler added');
 
 console.log('🎉 main.js initialization complete!');
-

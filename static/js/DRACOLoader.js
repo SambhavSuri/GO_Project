@@ -1,12 +1,9 @@
 import {
-	BufferAttribute,
 	BufferGeometry,
-	Color,
-	FileLoader,
-	Loader,
-	LinearSRGBColorSpace,
-	SRGBColorSpace
-} from 'three';
+	BufferAttribute,
+	Uint16BufferAttribute,
+	Uint32BufferAttribute
+} from '../three.js-master/build/three.module.js';
 
 const _taskCache = new WeakMap();
 
