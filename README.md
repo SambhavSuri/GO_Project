@@ -284,6 +284,116 @@ ai-vrm-chat/
 1. Update the voice options in `templates/index.html`
 2. The voices will be automatically available in the settings
 
+## VRM Animation Controls
+
+The application includes comprehensive VRM model animation controls that can be accessed through the browser console for testing and debugging purposes.
+
+### Console Commands
+
+#### **Expression Controls**
+```javascript
+// Test a specific expression
+testExpression('aa', 1.0);      // Mouth open
+testExpression('ee', 1.0);      // Mouth closed
+testExpression('happy', 1.0);   // Happy face
+testExpression('sad', 1.0);     // Sad face
+testExpression('angry', 1.0);   // Angry face
+testExpression('blink', 1.0);   // Blink
+
+// List all available expressions
+listExpressions();
+
+// Reset all expressions
+currentVrm.expressionManager.resetValues();
+```
+
+#### **Animation Switching**
+```javascript
+// Switch to talking animation (talking.fbx)
+switchToTalking();
+
+// Switch to idle animation (idleMale.fbx)
+switchToIdle();
+
+// Toggle between talking and idle animations
+toggleAnimation();
+```
+
+#### **Speaking Animation System**
+```javascript
+// Start speaking animation (idleMale + mouth movements + blinking)
+startSpeaking();
+
+// Stop speaking animation
+stopSpeaking();
+
+// Toggle speaking on/off
+toggleSpeaking();
+
+// Check if currently speaking
+console.log('Is speaking:', isSpeaking);
+```
+
+### Animation States
+
+- **`switchToTalking()`**: Pure talking.fbx animation (no facial expressions)
+- **`switchToIdle()`**: Pure idleMale.fbx animation (no facial expressions)  
+- **`startSpeaking()`**: idleMale.fbx + mouth movements + blinking
+- **`stopSpeaking()`**: Stops speaking and resets expressions
+
+### Speaking Animation Features
+
+The speaking animation system includes:
+- **Mouth Movements**: Opens and closes mouth in a realistic speaking pattern
+- **Eye Blinking**: Natural blinking every 2 seconds
+- **Base Animation**: Uses idleMale.fbx for body movement
+- **Smooth Transitions**: Mouth opens for 0.3s, closes for 0.2s
+
+### Customization
+
+You can adjust the speaking animation timing by modifying these variables in `main.js`:
+```javascript
+const mouthOpenTime = 0.3;    // How long mouth stays open
+const mouthCloseTime = 0.2;   // How long mouth stays closed
+const blinkInterval = 2.0;     // How often to blink
+```
+
+### Usage Examples
+
+```javascript
+// Start with idle animation
+switchToIdle();
+
+// Switch to talking animation
+switchToTalking();
+
+// Start speaking with facial expressions
+startSpeaking();
+
+// Stop speaking but keep talking animation
+stopSpeaking();
+
+// Toggle between animations
+toggleAnimation();
+```
+
+### Troubleshooting Animation Issues
+
+1. **Expressions not working**
+   - Check browser console for errors
+   - Verify VRM model has expression support
+   - Use `listExpressions()` to see available expressions
+
+2. **Animation not switching**
+   - Ensure animation files exist in `/static/animations/`
+   - Check file names match: `talking.fbx`, `idleMale.fbx`
+   - Verify VRM model is loaded before calling functions
+
+3. **Speaking animation issues**
+   - Check if `currentVrm` and `expressionManager` exist
+   - Verify expressions like 'aa', 'ee', 'blink' are available
+   - Use `listExpressions()` to see what's available
+
 ## Troubleshooting
 
 ### Common Issues
