@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>VRM Model Test - Animation Display</title>
+    <style>
+        body { 
+            margin: 0; 
+            background: #000;
+            font-family: Arial, sans-serif;
+        }
+        canvas { display: block; }
+        
+        /* Animation status overlay */
+        .status-overlay {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            color: #00ff00;
+            padding: 15px;
+            border-radius: 8px;
+            font-size: 14px;
+            z-index: 1000;
+            border: 1px solid #00ff00;
+            box-shadow: 0 0 10px rgba(0, 255, 0, 0.3);
+        }
+        
+        .status-item {
+            margin: 5px 0;
+        }
+        
+        .connected { color: #00ff00; }
+        .disconnected { color: #ff0000; }
+        .thinking { color: #ffaa00; }
+        .speaking { color: #00aaff; }
+        .idle { color: #aaaaaa; }
+    </style>
+</head>
+<body>
+    <canvas class="webgl"></canvas>
+    
+    <!-- Status overlay -->
+    <div class="status-overlay">
+        <div class="status-item">🎭 <strong>VRM Animation Display</strong></div>
+        <div class="status-item">📡 Connection: <span id="connection-status" class="disconnected">Disconnected</span></div>
+        <div class="status-item">🎬 Animation: <span id="animation-status" class="idle">Idle</span></div>
+        <div class="status-item">💬 Send messages on <a href="/" target="_blank" style="color: #00aaff;">main page</a> to trigger animations</div>
+    </div>
+    
+    <!-- Manual test controls -->
+    <div class="status-overlay" style="top: 20px; right: 20px; left: auto;">
+        <div class="status-item"><strong>🧪 Manual Tests</strong></div>
+        <button onclick="testThinking()" style="margin: 5px; padding: 8px; background: #333; color: #ffaa00; border: 1px solid #ffaa00; border-radius: 4px; cursor: pointer;">🤔 Test Thinking</button><br>
+        <button onclick="testTalking()" style="margin: 5px; padding: 8px; background: #333; color: #00aaff; border: 1px solid #00aaff; border-radius: 4px; cursor: pointer;">🎤 Test Talking</button><br>
+        <button onclick="testIdle()" style="margin: 5px; padding: 8px; background: #333; color: #aaaaaa; border: 1px solid #aaaaaa; border-radius: 4px; cursor: pointer;">😴 Test Idle</button>
+    </div>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
+    <script>
+        // Polyfill for Node.js process object
+        window.process = { env: {} };
+        
+        // WebSocket connection for animation events
+        let socket;
+        
+        function initializeWebSocket() {
+            socket = io();
+            
+            const connectionStatus = document.getElementById('connection-status');
+            const animationStatus = document.getElementById('animation-status');
+            
+            socket.on('connect', () => {
+                console.log('🔗 Connected to animation server');
+                connectionStatus.textContent = 'Connected';
+                connectionStatus.className = 'connected';
+            });
+            
+            socket.on('disconnect', () => {
+                console.log('❌ Disconnected from animation server');
+                connectionStatus.textContent = 'Disconnected';
+                connectionStatus.className = 'disconnected';
+            });
+            
+            // Debug: Log all incoming events
+            socket.onAny((event, ...args) => {
+                console.log('📡 WebSocket event received:', event, args);
+            });
+            
+            // Animation event handlers
+            socket.on('thinking_started', (data) => {
+                console.log('🤔 AI started thinking - switching to thinking animation', data);
+                animationStatus.textContent = 'Thinking...';
+                animationStatus.className = 'thinking';
+                
+                // Trigger thinking animation
+                console.log('switchToThinking available:', typeof window.switchToThinking);
+                if (window.switchToThinking) {
+                    console.log('Calling switchToThinking...');
+                    window.switchToThinking();
+                } else {
+                    console.warn('❌ switchToThinking not available');
+                }
+            });
+            
+            socket.on('tts_started', (data) => {
+                console.log('🎤 TTS started - switching to talking animation', data);
+                animationStatus.textContent = 'Speaking';
+                animationStatus.className = 'speaking';
+                
+                // Trigger talking animation with expressions
+                console.log('Speaking functions available:', {
+                    startSynchronizedSpeaking: typeof window.startSynchronizedSpeaking,
+                    startSpeaking: typeof window.startSpeaking
+                });
+                
+                if (window.startSynchronizedSpeaking) {
+                    console.log('Calling startSynchronizedSpeaking...');
+                    window.startSynchronizedSpeaking();
+                } else if (window.startSpeaking) {
+                    console.log('Calling startSpeaking...');
+                    window.startSpeaking();
+                } else {
+                    console.warn('❌ No speaking functions available');
+                }
+            });
+            
+            socket.on('tts_ended', (data) => {
+                console.log('🔇 TTS ended - returning to idle animation', data);
+                animationStatus.textContent = 'Idle';
+                animationStatus.className = 'idle';
+                
+                // Return to idle animation
+                console.log('stopSpeaking available:', typeof window.stopSpeaking);
+                if (window.stopSpeaking) {
+                    console.log('Calling stopSpeaking...');
+                    window.stopSpeaking();
+                } else {
+                    console.warn('❌ stopSpeaking not available');
+                }
+            });
+            
+            socket.on('vrm_ready', () => {
+                console.log('✅ VRM model ready for animations');
+            });
+            
+            // Notify server that VRM is ready
+            setTimeout(() => {
+                socket.emit('vrm_ready');
+            }, 2000);
+        }
+        
+        // Initialize WebSocket connection after a short delay
+        setTimeout(() => {
+            initializeWebSocket();
+        }, 1000);
+        
+        // Manual test functions
+        function testThinking() {
+            console.log('🧪 Manual test: Thinking animation');
+            document.getElementById('animation-status').textContent = 'Thinking... (Manual Test)';
+            document.getElementById('animation-status').className = 'thinking';
+            if (window.switchToThinking) {
+                window.switchToThinking();
+            } else {
+                console.warn('switchToThinking not available yet');
+            }
+        }
+        
+        function testTalking() {
+            console.log('🧪 Manual test: Talking animation');
+            document.getElementById('animation-status').textContent = 'Speaking (Manual Test)';
+            document.getElementById('animation-status').className = 'speaking';
+            if (window.startSynchronizedSpeaking) {
+                window.startSynchronizedSpeaking();
+            } else if (window.startSpeaking) {
+                window.startSpeaking();
+            } else {
+                console.warn('Speaking functions not available yet');
+            }
+        }
+        
+        function testIdle() {
+            console.log('🧪 Manual test: Idle animation');
+            document.getElementById('animation-status').textContent = 'Idle (Manual Test)';
+            document.getElementById('animation-status').className = 'idle';
+            if (window.stopSpeaking) {
+                window.stopSpeaking();
+            } else {
+                console.warn('stopSpeaking not available yet');
+            }
+        }
+    </script>
+    
+    <!-- Load main.js as ES6 module -->
+    <script type="module" src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>
