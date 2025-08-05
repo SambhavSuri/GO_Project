@@ -61,6 +61,15 @@ let currentMixer = null;
 let speakingAnimationLoop = null;
 const clock = new THREE.Clock();
 
+// Animation cache system
+let animationCache = {};
+let currentAction = null;
+const animationPaths = {
+  idle: '/static/animations/idleMale.fbx',
+  talking: '/static/animations/talking.fbx',
+  thinking: '/static/animations/Thinking.fbx'
+};
+
 // Speaking animation variables
 let isSpeaking = false;
 let speakingStartTime = 0;
@@ -71,29 +80,91 @@ let lastBlinkTime = 0;
 let mouthState = 'closed'; // 'open' or 'closed'
 let lastMouthChangeTime = 0;
 
-// Play animation function
-function playAnimation(animationPath) {
-    if (!currentVrm) {
+// Initialize animation cache and mixer when VRM is loaded
+async function initializeAnimationSystem(vrm) {
+    if (!vrm) {
         console.warn('VRM not loaded yet');
         return;
     }
     
-    currentVrm.humanoid.resetNormalizedPose();
-    
-    if (currentMixer) {
-        currentMixer.stopAllAction();
+    // Create mixer once
+    if (!currentMixer) {
+        currentMixer = new THREE.AnimationMixer(vrm.scene);
+        console.log('✅ Animation mixer created');
     }
-    currentMixer = new THREE.AnimationMixer(currentVrm.scene);
     
-    loadMixamoAnimation(animationPath, currentVrm)
-        .then((clip) => {
-            const action = currentMixer.clipAction(clip);
-            action.play();
-            console.log('✅ Animation playing:', animationPath);
-        })
-        .catch((error) => {
-            console.error('❌ Failed to load animation:', error);
-        });
+    // Pre-load all animations into cache
+    console.log('🔄 Pre-loading animations...');
+    const loadPromises = [];
+    
+    for (const [name, path] of Object.entries(animationPaths)) {
+        loadPromises.push(
+            loadMixamoAnimation(path, vrm)
+                .then((clip) => {
+                    const action = currentMixer.clipAction(clip);
+                    action.loop = THREE.LoopRepeat;
+                    animationCache[name] = action;
+                    console.log(`✅ Cached animation: ${name}`);
+                })
+                .catch((error) => {
+                    console.error(`❌ Failed to cache animation ${name}:`, error);
+                })
+        );
+    }
+    
+    await Promise.all(loadPromises);
+    console.log('✅ All animations cached successfully');
+    
+    // Start with idle animation
+    playAnimationSmooth('idle');
+}
+
+// Smooth animation switching with crossfade
+function playAnimationSmooth(animationName, crossfadeDuration = 0.3) {
+    if (!currentVrm || !currentMixer) {
+        console.warn('VRM or mixer not ready yet');
+        return;
+    }
+    
+    const newAction = animationCache[animationName];
+    if (!newAction) {
+        console.warn(`Animation "${animationName}" not found in cache`);
+        return;
+    }
+    
+    // If this is the first animation or same animation, just play it
+    if (!currentAction || currentAction === newAction) {
+        newAction.reset();
+        newAction.play();
+        currentAction = newAction;
+        console.log(`✅ Playing animation: ${animationName}`);
+        return;
+    }
+    
+    // Smooth crossfade between animations
+    newAction.reset();
+    newAction.play();
+    newAction.setEffectiveWeight(1);
+    
+    // Crossfade from current to new animation
+    currentAction.crossFadeTo(newAction, crossfadeDuration, false);
+    currentAction = newAction;
+    
+    console.log(`✅ Smooth transition to animation: ${animationName}`);
+}
+
+// Legacy function for backward compatibility - now uses smooth transitions
+function playAnimation(animationPath) {
+    // Map path to animation name
+    const animationName = Object.keys(animationPaths).find(key => 
+        animationPaths[key] === animationPath
+    );
+    
+    if (animationName) {
+        playAnimationSmooth(animationName);
+    } else {
+        console.warn(`Animation path ${animationPath} not found in cache. Please use initializeAnimationSystem first.`);
+    }
 }
 
 // Helper function to test expressions
@@ -166,7 +237,7 @@ function startSpeaking() {
     mouthState = 'closed';
     
     // Start the talking animation for speaking
-    playAnimation('/static/animations/talking.fbx');
+    playAnimationSmooth('talking');
     
     console.log('🎤 Started synchronized speaking: talking.fbx animation + face expressions');
 }
@@ -198,7 +269,7 @@ function stopSpeaking() {
     currentVrm.expressionManager.resetValues();
     
     // Return to idle animation
-    playAnimation('/static/animations/idleMale.fbx');
+    playAnimationSmooth('idle');
     
     console.log('🔇 Stopped speaking animation and returned to idle');
 }
@@ -257,7 +328,7 @@ function switchToTalking() {
     }
     
     console.log('🎬 Switching to talking animation...');
-    playAnimation('/static/animations/talking.fbx');
+    playAnimationSmooth('talking');
 }
 
 // Switch to thinking animation
@@ -269,7 +340,7 @@ function switchToThinking() {
     }
     
     console.log('🤔 Switching to thinking animation...');
-    playAnimation('/static/animations/Thinking.fbx');
+    playAnimationSmooth('thinking');
 }
 
 // Switch to idle animation
@@ -280,7 +351,7 @@ function switchToIdle() {
     }
     
     console.log('😴 Switching to idle animation...');
-    playAnimation('/static/animations/idleMale.fbx');
+    playAnimationSmooth('idle');
 }
 
 // Toggle between talking and idle animations
@@ -320,6 +391,8 @@ window.switchToTalking = switchToTalking;
 window.switchToThinking = switchToThinking;
 window.switchToIdle = switchToIdle;
 window.toggleAnimation = toggleAnimation;
+window.playAnimationSmooth = playAnimationSmooth;
+window.initializeAnimationSystem = initializeAnimationSystem;
 
 console.log('✅ Animation functions exposed to window object');
 
@@ -376,7 +449,7 @@ loader.register((parser) => {
 
 loader.load(
   '/static/assets/AvatarSample_C.vrm',
-  function (gltf) {
+  async function (gltf) {
     console.log('✅ VRM model loaded successfully:', gltf);
     
     // Get VRM object
@@ -448,8 +521,8 @@ loader.load(
       console.log('🔍 Checking if expression manager is in userData:', gltf.userData);
     }
     
-    // Play animation after VRM loads
-    playAnimation('/static/animations/idleMale.fbx'); // Changed to idleMale for speaking animation
+    // Initialize animation system after VRM loads
+    await initializeAnimationSystem(currentVrm);
     
     // Update debug status
     updateDebugStatus();

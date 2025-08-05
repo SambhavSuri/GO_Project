@@ -41,12 +41,15 @@ class RAGService:
         try:
             # Prepare request payload
             payload = {
-                "user_query": query,
+                "query": query,  # Changed from "user_query" to "query" to match RAG endpoint
                 "history": self.conversation_history[-5:],  # Last 5 messages for context
                 "response_mode": "summary",
                 "max_tokens": 500,
                 "temperature": 0.7
             }
+            
+            print(f"🔍 RAG Request: {self.rag_endpoint}")
+            print(f"📝 Payload: {payload}")
             
             # Prepare headers
             headers = {
@@ -66,9 +69,11 @@ class RAGService:
             )
             
             # Check if request was successful
+            print(f"📡 RAG Response Status: {response.status_code}")
             if response.status_code == 200:
                 try:
                     result = response.json()
+                    print(f"✅ RAG Response: {result}")
                     
                     # Handle different response formats
                     if isinstance(result, dict):
@@ -85,6 +90,7 @@ class RAGService:
                             return result['message']
                         else:
                             # If no standard field, return the entire response as string
+                            print(f"⚠️ Unknown response format, returning as string: {result}")
                             return str(result)
                     elif isinstance(result, str):
                         return result
@@ -92,6 +98,7 @@ class RAGService:
                         return str(result)
                         
                 except json.JSONDecodeError:
+                    print(f"⚠️ Non-JSON response: {response.text}")
                     # If response is not JSON, treat as plain text
                     return response.text
             else:
@@ -188,7 +195,8 @@ class RAGService:
         try:
             test_payload = {
                 "query": "test",
-                "conversation_history": [],
+                "history": [],  # Changed from "conversation_history" to "history" to match
+                "response_mode": "summary",
                 "max_tokens": 10,
                 "temperature": 0.1
             }
