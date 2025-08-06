@@ -724,20 +724,22 @@ function updateSpeakingAnimation(deltaTime) {
                 lerpMorphTarget(viseme, 0.0, 0.1);
             });
             
-            // MUCH MORE DRAMATIC speaking visemes for clear visibility
-            const speakingVisemes = [
-                { viseme: 'viseme_aa', strength: 1.0 },  // WIDE OPEN mouth
-                { viseme: 'viseme_E', strength: 0.9 },   // Mid-open (dramatic)
-                { viseme: 'viseme_O', strength: 1.0 },   // ROUND OPEN mouth
-                { viseme: 'viseme_I', strength: 0.8 },   // Narrow but strong
-                { viseme: 'viseme_DD', strength: 0.9 },  // Dental (strong)
-                { viseme: 'viseme_PP', strength: 0.7 },  // Lip movement
+            // REALISTIC LIP MOVEMENT with proper mouth gap - focus on lips, not teeth
+            const lipMovementVisemes = [
+                { viseme: 'viseme_aa', strength: 0.9, desc: 'Wide lip separation' },
+                { viseme: 'viseme_E', strength: 0.7, desc: 'Mid lip position' },
+                { viseme: 'viseme_O', strength: 0.8, desc: 'Round lip pucker' },
+                { viseme: 'viseme_I', strength: 0.6, desc: 'Narrow lip spread' },
+                { viseme: 'viseme_U', strength: 0.7, desc: 'Lip forward projection' },
+                { viseme: 'viseme_PP', strength: 0.8, desc: 'Lip closure/release' },
             ];
             
-            const randomViseme = speakingVisemes[Math.floor(Math.random() * speakingVisemes.length)];
-            lerpMorphTarget(randomViseme.viseme, randomViseme.strength, 0.15);
+            const randomLipMovement = lipMovementVisemes[Math.floor(Math.random() * lipMovementVisemes.length)];
             
-            console.log(`👄 MOUTH WIDE OPEN: ${randomViseme.viseme} at ${randomViseme.strength} strength`);
+            // Apply the chosen lip movement with moderate strength for realism
+            lerpMorphTarget(randomLipMovement.viseme, randomLipMovement.strength, 0.2);
+            
+            console.log(`👄 LIP MOVEMENT: ${randomLipMovement.viseme} (${randomLipMovement.desc}) at ${randomLipMovement.strength} strength`);
         }
         mouthState = 'open';
         lastMouthChangeTime = currentTime;
@@ -747,15 +749,15 @@ function updateSpeakingAnimation(deltaTime) {
             currentVrm.expressionManager.setValue('aa', 0.0);
             currentVrm.expressionManager.setValue('ee', 0.3);
         } else if (hasGLB) {
-            // Reset all speaking visemes more quickly for dramatic contrast
-            ['viseme_aa', 'viseme_E', 'viseme_I', 'viseme_O', 'viseme_U', 'viseme_DD', 'viseme_PP'].forEach(viseme => {
-                lerpMorphTarget(viseme, 0.0, 0.15);
+            // Reset all speaking visemes for natural lip closure
+            ['viseme_aa', 'viseme_E', 'viseme_I', 'viseme_O', 'viseme_U', 'viseme_PP'].forEach(viseme => {
+                lerpMorphTarget(viseme, 0.0, 0.2);
             });
             
-            // Apply minimal silence for maximum contrast
-            lerpMorphTarget('viseme_sil', 0.1, 0.15);
+            // Apply natural lip closure with slight gap
+            lerpMorphTarget('viseme_sil', 0.3, 0.2);  // More neutral closure
             
-            console.log(`🤐 MOUTH CLOSED: viseme_sil at 0.1 strength`);
+            console.log(`🤐 LIPS CLOSED: Natural lip position with slight gap`);
         }
         mouthState = 'closed';
         lastMouthChangeTime = currentTime;
@@ -954,17 +956,31 @@ window.listFacialExpressions = () => {
     return Object.keys(facialExpressions);
 };
 window.testMouthOpen = () => {
-    console.log('🧪 Testing DRAMATIC mouth open with your visemes');
-    // Test with MAXIMUM values for visibility
-    lerpMorphTarget('viseme_aa', 1.0, 1.0);  // MAXIMUM mouth open
-    lerpMorphTarget('viseme_O', 1.0, 1.0);   // MAXIMUM round mouth
-    lerpMorphTarget('viseme_sil', 0.0, 1.0); // Zero silence
+    console.log('🧪 Testing REALISTIC LIP MOVEMENT and mouth gap');
+    
+    // Focus on natural lip shapes and mouth opening
+    lerpMorphTarget('viseme_sil', 0.0, 0.5);   // Clear any closure
+    lerpMorphTarget('viseme_aa', 0.9, 0.8);    // Wide lip separation (not extreme)
+    
     setTimeout(() => {
-        console.log('🧪 Resetting mouth to minimal silence');
-        lerpMorphTarget('viseme_aa', 0.0, 1.0);
-        lerpMorphTarget('viseme_O', 0.0, 1.0);
-        lerpMorphTarget('viseme_sil', 0.1, 1.0); // Minimal silence for contrast
-    }, 3000);  // Longer to see the dramatic effect
+        console.log('👄 Switching to round lip shape...');
+        lerpMorphTarget('viseme_aa', 0.0, 0.5);
+        lerpMorphTarget('viseme_O', 0.8, 0.8);   // Round lip pucker
+    }, 1500);
+    
+    setTimeout(() => {
+        console.log('👄 Testing lip closure/release...');
+        lerpMorphTarget('viseme_O', 0.0, 0.5);
+        lerpMorphTarget('viseme_PP', 0.8, 0.8);  // Lip contact and release
+    }, 3000);
+    
+    setTimeout(() => {
+        console.log('🧪 Natural lip closure...');
+        ['viseme_aa', 'viseme_O', 'viseme_PP'].forEach(v => {
+            lerpMorphTarget(v, 0.0, 1.0);
+        });
+        lerpMorphTarget('viseme_sil', 0.3, 1.0);  // Natural rest position
+    }, 4500);
 };
 window.testBlink = () => {
     console.log('🧪 Testing blink');
@@ -1104,6 +1120,92 @@ window.testDramaticSpeaking = () => {
     }
     
     dramaticCycle();
+};
+
+// Test teeth-specific visemes
+window.testTeethVisemes = () => {
+    console.log('🦷 Testing teeth-specific visemes...');
+    
+    const teethVisemes = [
+        { name: 'viseme_DD', desc: 'Dental sounds (tongue-teeth contact)' },
+        { name: 'viseme_TH', desc: 'Dental fricative (tongue between teeth)' },
+        { name: 'viseme_FF', desc: 'Lip-teeth contact (F, V sounds)' },
+        { name: 'viseme_SS', desc: 'Sibilant sounds (teeth together)' },
+        { name: 'viseme_aa', desc: 'Wide open (maximum teeth visibility)' }
+    ];
+    
+    let currentIndex = 0;
+    
+    function testNextTeethViseme() {
+        if (currentIndex >= teethVisemes.length) {
+            console.log('✅ All teeth visemes tested! Resetting...');
+            teethVisemes.forEach(v => lerpMorphTarget(v.name, 0.0, 0.5));
+            lerpMorphTarget('viseme_sil', 0.2, 0.5);
+            return;
+        }
+        
+        const viseme = teethVisemes[currentIndex];
+        console.log(`🦷 Testing ${viseme.name}: ${viseme.desc}`);
+        
+        // Reset all first
+        teethVisemes.forEach(v => lerpMorphTarget(v.name, 0.0, 0.3));
+        lerpMorphTarget('viseme_sil', 0.0, 0.3);
+        
+        // Apply current teeth viseme
+        lerpMorphTarget(viseme.name, 1.0, 0.3);
+        
+        currentIndex++;
+        setTimeout(testNextTeethViseme, 2500); // Longer to see teeth movement
+    }
+    
+    testNextTeethViseme();
+};
+
+// Test realistic lip movement and mouth gap
+window.testRealisticLipMovement = () => {
+    console.log('👄 Testing REALISTIC LIP MOVEMENT sequence...');
+    
+    const lipSequence = [
+        { viseme: 'viseme_PP', strength: 0.8, desc: 'Lip closure (B, P, M sounds)', duration: 800 },
+        { viseme: 'viseme_aa', strength: 0.9, desc: 'Wide lip opening (AH sound)', duration: 1000 },
+        { viseme: 'viseme_O', strength: 0.8, desc: 'Round lip pucker (OH sound)', duration: 900 },
+        { viseme: 'viseme_E', strength: 0.7, desc: 'Mid lip spread (EH sound)', duration: 800 },
+        { viseme: 'viseme_I', strength: 0.6, desc: 'Narrow lip position (EE sound)', duration: 700 },
+        { viseme: 'viseme_U', strength: 0.7, desc: 'Forward lip projection (OO sound)', duration: 900 }
+    ];
+    
+    let currentIndex = 0;
+    
+    function playNextLipMovement() {
+        if (currentIndex >= lipSequence.length) {
+            console.log('✅ Lip movement sequence complete! Returning to rest...');
+            // Return to natural rest position
+            lerpMorphTarget('viseme_sil', 0.3, 1.0);
+            return;
+        }
+        
+        const movement = lipSequence[currentIndex];
+        console.log(`👄 ${movement.desc} - ${movement.viseme} at ${movement.strength}`);
+        
+        // Reset previous
+        if (currentIndex > 0) {
+            const prevMovement = lipSequence[currentIndex - 1];
+            lerpMorphTarget(prevMovement.viseme, 0.0, 0.3);
+        }
+        lerpMorphTarget('viseme_sil', 0.0, 0.3);
+        
+        // Apply current lip movement
+        lerpMorphTarget(movement.viseme, movement.strength, 0.4);
+        
+        currentIndex++;
+        setTimeout(playNextLipMovement, movement.duration);
+    }
+    
+    // Reset everything first
+    const allVisemes = ['viseme_sil', 'viseme_aa', 'viseme_E', 'viseme_I', 'viseme_O', 'viseme_U', 'viseme_PP'];
+    allVisemes.forEach(v => lerpMorphTarget(v, 0.0, 0.3));
+    
+    setTimeout(playNextLipMovement, 500);
 };
 
 // Debug function to check mouth movement issues
