@@ -179,7 +179,9 @@ let currentAction = null;
 const animationPaths = {
   idle: '/static/animations/idleMale.glb',
   talking: '/static/animations/Talking.glb',
-  thinking: '/static/animations/Thinking.fbx'  // Keep FBX for now since no GLB version
+  thinking: '/static/animations/Thinking.fbx',  // Keep FBX for now since no GLB version
+  walkingLeftTurn: '/static/animations/walkingLeftTurn.glb',
+  waving: '/static/animations/waving.glb'
 };
 
 // Speaking animation variables
@@ -191,6 +193,91 @@ const blinkInterval = 2.0; // Blink every 2 seconds
 let lastBlinkTime = 0;
 let mouthState = 'closed'; // 'open' or 'closed'
 let lastMouthChangeTime = 0;
+
+// Sequential animation variables
+let animationSequenceCallback = null;
+
+// Play animation once and call callback when finished
+function playAnimationOnce(animationName, onFinished = null) {
+    if (!animationCache[animationName]) {
+        console.warn(`Animation ${animationName} not found in cache`);
+        if (onFinished) onFinished();
+        return;
+    }
+    
+    const action = animationCache[animationName];
+    
+    // Stop current action if it exists
+    if (currentAction && currentAction !== action) {
+        currentAction.stop();
+    }
+    
+    // Configure the action for one-time playback
+    action.reset();
+    action.setLoop(THREE.LoopOnce);
+    action.clampWhenFinished = true;
+    action.play();
+    
+    currentAction = action;
+    animationSequenceCallback = onFinished;
+    
+    console.log(`🎬 Playing animation once: ${animationName}`);
+}
+
+// Play animation once with smooth crossfade transition
+function playAnimationOnceSmooth(animationName, crossfadeDuration = 0.5, onFinished = null, facialExpression = null) {
+    if (!animationCache[animationName]) {
+        console.warn(`Animation ${animationName} not found in cache`);
+        if (onFinished) onFinished();
+        return;
+    }
+    
+    const newAction = animationCache[animationName];
+    
+    // Configure the action for one-time playback
+    newAction.reset();
+    newAction.setLoop(THREE.LoopOnce);
+    newAction.clampWhenFinished = true;
+    newAction.setEffectiveWeight(1);
+    newAction.play();
+    
+    // Smooth crossfade if there's a current action
+    if (currentAction && currentAction !== newAction && currentAction.isRunning()) {
+        currentAction.crossFadeTo(newAction, crossfadeDuration, false);
+        console.log(`🎬 Smooth crossfade to animation: ${animationName} (${crossfadeDuration}s)`);
+    } else {
+        console.log(`🎬 Playing animation with smooth start: ${animationName}`);
+    }
+    
+    // Apply facial expression if specified
+    if (facialExpression) {
+        console.log(`😊 Applying facial expression: ${facialExpression}`);
+        setFacialExpression(facialExpression);
+    }
+    
+    currentAction = newAction;
+    animationSequenceCallback = onFinished;
+}
+
+// Play sequential animations: walkingLeftTurn → idle → waving → idle
+function playInitialAnimationSequence() {
+    console.log('🎬 Starting initial animation sequence with fast smooth transitions: walkingLeftTurn → idle → waving → idle');
+    
+    playAnimationOnce('walkingLeftTurn', () => {
+        console.log('🎬 walkingLeftTurn finished, quickly transitioning to idle');
+        playAnimationSmooth('idle', 0.4); // Faster crossfade to idle
+        
+        // After a shorter delay, play waving animation with quick transition and smile
+        setTimeout(() => {
+            console.log('🎬 Starting waving animation with quick crossfade and smile');
+            playAnimationOnceSmooth('waving', 0.3, () => {
+                console.log('🎬 waving finished, quickly returning to idle and resetting expression');
+                setFacialExpression('default'); // Reset to neutral expression
+                playAnimationSmooth('idle', 0.4); // Quick return to idle
+            }, 'smile'); // Add smile expression during waving
+        }, 1500); // Wait only 1.5 seconds before waving
+    });
+}
 
 // Initialize animation cache and mixer when model is loaded
 async function initializeAnimationSystem(model, isVRM = false) {
@@ -230,8 +317,8 @@ async function initializeAnimationSystem(model, isVRM = false) {
     await Promise.all(loadPromises);
     console.log('✅ All animations cached successfully');
     
-    // Start with idle animation
-    playAnimationSmooth('idle');
+    // Start with the initial animation sequence (walkingLeftTurn → idle)
+    playInitialAnimationSequence();
 }
 
 // Find morph targets in GLB model
@@ -928,6 +1015,30 @@ window.switchToThinking = switchToThinking;
 window.switchToIdle = switchToIdle;
 window.toggleAnimation = toggleAnimation;
 window.playAnimationSmooth = playAnimationSmooth;
+window.playAnimationOnce = playAnimationOnce;
+window.playAnimationOnceSmooth = playAnimationOnceSmooth;
+window.playInitialAnimationSequence = playInitialAnimationSequence;
+
+// Test waving animation manually with fast smooth transitions and smile
+window.testWaving = () => {
+    console.log('🎬 Testing waving animation with fast smooth transitions and smile');
+    playAnimationOnceSmooth('waving', 0.3, () => {
+        console.log('🎬 Waving finished, quickly returning to idle and resetting expression');
+        setFacialExpression('default'); // Reset to neutral expression
+        playAnimationSmooth('idle', 0.4);
+    }, 'smile'); // Add smile expression during waving
+};
+
+// Test different facial expressions with waving
+window.testWavingWithExpression = (expression = 'smile') => {
+    console.log(`🎬 Testing waving animation with expression: ${expression}`);
+    playAnimationOnceSmooth('waving', 0.3, () => {
+        console.log('🎬 Waving finished, resetting to default expression');
+        setFacialExpression('default');
+        playAnimationSmooth('idle', 0.4);
+    }, expression);
+};
+
 window.initializeAnimationSystem = initializeAnimationSystem;
 window.debugTalkingAnimation = debugTalkingAnimation;
 window.resizeModel = resizeModel;
@@ -1734,6 +1845,13 @@ renderer.setAnimationLoop(() => {
   // Update animation mixer
   if (currentMixer) {
     currentMixer.update(deltaTime);
+    
+    // Check if current action finished (for one-time animations)
+    if (currentAction && currentAction.loop === THREE.LoopOnce && !currentAction.isRunning() && animationSequenceCallback) {
+      const callback = animationSequenceCallback;
+      animationSequenceCallback = null; // Clear callback to prevent multiple calls
+      callback();
+    }
   }
   
   // Update VRM
