@@ -395,7 +395,7 @@ def generate_talking_vrm_response(text):
     )
 
 if __name__ == '__main__':
-    port = int(os.getenv('PORT', 5000))
+    port = int(os.getenv('PORT', 5001))
     debug = os.getenv('FLASK_ENV') == 'development'
     
     print(f"AI VRM Chat Server starting on port {port}")

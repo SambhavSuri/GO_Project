@@ -1575,28 +1575,9 @@ window.showFullBody = showFullBody;
 console.log('✅ Animation functions exposed to window object');
 
 // Debug functions
-function updateDebugStatus() {
-    console.log('🔍 VRM Status Debug:');
-    console.log('- currentVrm:', !!currentVrm);
-    console.log('- currentMixer:', !!currentMixer);
-    console.log('- expressionManager:', currentVrm ? !!currentVrm.expressionManager : 'N/A');
-    console.log('- isSpeaking:', isSpeaking);
-    
-    // Display status in page if element exists
-    const statusElement = document.getElementById('vrm-debug-status');
-    if (statusElement) {
-        statusElement.innerHTML = `
-            VRM: ${currentVrm ? '✅' : '❌'} | 
-            Mixer: ${currentMixer ? '✅' : '❌'} | 
-            Expressions: ${currentVrm && currentVrm.expressionManager ? '✅' : '❌'} | 
-            Speaking: ${isSpeaking ? '✅' : '❌'}
-        `;
-    }
-}
 
 function debugAnimationSystem() {
     console.log('🔧 Animation System Debug:');
-    updateDebugStatus();
     
     console.log('Available window functions:');
     const funcs = ['switchToThinking', 'switchToTalking', 'switchToIdle', 'startSpeaking', 'stopSpeaking', 'startSynchronizedSpeaking'];
@@ -1779,7 +1760,6 @@ function setupModelForLookingGlass() {
     };
 }
 
-window.updateDebugStatus = updateDebugStatus;
 window.debugAnimationSystem = debugAnimationSystem;
 
 // Load model
@@ -1900,9 +1880,6 @@ loader.load(
       showFullBody();
     }, 100);
     
-    // Update debug status
-    updateDebugStatus();
-    
     render(); // Initial render
   },
   function (xhr) {
@@ -1937,7 +1914,6 @@ renderer.xr.enabled = true;
 console.log('✅ Renderer configured');
 
 // Animation Loop
-let debugUpdateCounter = 0;
 renderer.setAnimationLoop(() => {
   const deltaTime = clock.getDelta();
   
@@ -1961,12 +1937,7 @@ renderer.setAnimationLoop(() => {
   // Update speaking animation
   updateSpeakingAnimation(deltaTime);
   
-  // Update debug status every 60 frames (approximately 1 second)
-  debugUpdateCounter++;
-  if (debugUpdateCounter >= 60) {
-    updateDebugStatus();
-    debugUpdateCounter = 0;
-  }
+
   
   render();
 });

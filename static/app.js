@@ -84,10 +84,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // Update status to show system is ready
         addSystemMessage('🎉 Animation system ready! Try sending a chat message to see synchronized animations.');
         
-        // Update debug status if available
-        if (window.updateDebugStatus) {
-            window.updateDebugStatus();
-        }
+
     });
 });
 

@@ -7,7 +7,7 @@ import ssl
 import certifi
 from datetime import datetime
 from dotenv import load_dotenv
-from deepgram import Deepgram
+from deepgram import DeepgramClient, PrerecordedOptions
 
 # Load environment variables
 load_dotenv()
@@ -31,7 +31,7 @@ class DeepgramService:
             logger.warning(f"SSL context setup failed: {e}")
         
         try:
-            self.deepgram = DeepgramClient(api_key=self.api_key) if self.api_key else None
+            self.deepgram = DeepgramClient(self.api_key) if self.api_key else None
         except Exception as e:
             logger.error(f"Failed to initialize Deepgram client: {e}")
             self.deepgram = None
@@ -84,35 +84,38 @@ class DeepgramService:
             logger.info("-" * 60)
             return
         
-        if isinstance(response, dict):
+        if hasattr(response, 'results') and response.results:
             # Log key response details
-            if 'results' in response:
-                results = response['results']
-                logger.info(f"Results Available: {len(results) if results else 0}")
+            results = response.results
+            logger.info(f"Results Available: Available")
+            
+            if results.channels and len(results.channels) > 0:
+                channel = results.channels[0]
+                logger.info(f"Channels: {len(results.channels)}")
                 
-                if 'channels' in results and len(results['channels']) > 0:
-                    channel = results['channels'][0]
-                    logger.info(f"Channels: {len(results['channels'])}")
+                if channel.alternatives and len(channel.alternatives) > 0:
+                    alternative = channel.alternatives[0]
+                    transcript = alternative.transcript or ''
+                    confidence = alternative.confidence or 0
                     
-                    if 'alternatives' in channel and len(channel['alternatives']) > 0:
-                        alternative = channel['alternatives'][0]
-                        transcript = alternative.get('transcript', '')
-                        confidence = alternative.get('confidence', 0)
-                        
-                        logger.info(f"Transcription: '{transcript}'")
-                        logger.info(f"Confidence: {confidence:.3f}")
-                        logger.info(f"Word Count: {len(transcript.split()) if transcript else 0}")
-                        
-                        # Log detailed response structure
+                    logger.info(f"Transcription: '{transcript}'")
+                    logger.info(f"Confidence: {confidence:.3f}")
+                    logger.info(f"Word Count: {len(transcript.split()) if transcript else 0}")
+                    
+                    # Log detailed response structure (convert to dict for JSON serialization)
+                    try:
+                        response_dict = response.to_dict() if hasattr(response, 'to_dict') else str(response)
                         logger.info("Full Response Structure:")
-                        logger.info(json.dumps(response, indent=2, default=str))
-                    else:
-                        logger.warning("No alternatives found in response")
+                        logger.info(json.dumps(response_dict, indent=2, default=str))
+                    except Exception as e:
+                        logger.info(f"Response Content: {str(response)}")
                 else:
-                    logger.warning("No channels found in response")
+                    logger.warning("No alternatives found in response")
             else:
-                logger.warning("No results found in response")
-                logger.info(f"Response Content: {json.dumps(response, indent=2, default=str)}")
+                logger.warning("No channels found in response")
+        elif isinstance(response, dict):
+            # Fallback for dict responses
+            logger.info(f"Response Content: {json.dumps(response, indent=2, default=str)}")
         else:
             logger.info(f"Response Content: {response}")
         
@@ -150,23 +153,25 @@ class DeepgramService:
             return "Mock transcription: Please set DEEPGRAM_API_KEY environment variable"
         
         # Log request details
-        options = {
-            'smart_format': True,
-            'punctuate': True,
-            'diarize': False,
-            'model': 'nova-2',  # Use the latest model
-            'language': 'en-US',
-            'filler_words': False,
-            'profanity_filter': False
-        }
-        self._log_request_details(audio_file_path=audio_file_path, options=options)
+        options = PrerecordedOptions(
+            smart_format=True,
+            punctuate=True,
+            diarize=False,
+            model="nova-2",  # Use the latest model
+            language="en-US",
+            filler_words=False,
+            profanity_filter=False
+        )
+        self._log_request_details(audio_file_path=audio_file_path, options=options.__dict__)
         
         try:
             with open(audio_file_path, "rb") as audio:
-                source = {'buffer': audio, 'mimetype': 'audio/wav'}
+                buffer_data = audio.read()
                 
                 logger.info("Sending request to Deepgram API...")
-                response = await self.deepgram.transcription.prerecorded(source, options)
+                response = self.deepgram.listen.prerecorded.v("1").transcribe_file(
+                    {"buffer": buffer_data}, options
+                )
                 
                 # Log response details
                 self._log_response_details(response, start_time)
@@ -177,25 +182,25 @@ class DeepgramService:
                     return "Error: No response from Deepgram API"
                 
                 # Check if response has the expected structure
-                if not isinstance(response, dict) or 'results' not in response:
+                if not hasattr(response, 'results') or response.results is None:
                     logger.error(f"Unexpected response format: {type(response)}")
                     return "Error: Unexpected response format from Deepgram API"
                 
                 # Check if results exist and have channels
-                results = response.get('results', {})
-                if not results or 'channels' not in results or not results['channels']:
+                results = response.results
+                if not results.channels or len(results.channels) == 0:
                     logger.error("No channels found in Deepgram response")
                     return "Error: No audio channels found in response"
                 
                 # Check if alternatives exist
-                channel = results['channels'][0]
-                if 'alternatives' not in channel or not channel['alternatives']:
+                channel = results.channels[0]
+                if not channel.alternatives or len(channel.alternatives) == 0:
                     logger.error("No alternatives found in Deepgram response")
                     return "Error: No transcription alternatives found"
                 
                 # Extract transcript
-                alternative = channel['alternatives'][0]
-                transcript = alternative.get('transcript', '')
+                alternative = channel.alternatives[0]
+                transcript = alternative.transcript
                 
                 # Handle empty transcript
                 if not transcript or transcript.strip() == '':
@@ -221,15 +226,14 @@ class DeepgramService:
             return "Mock transcription: Please set DEEPGRAM_API_KEY environment variable"
         
         # Log request details
-        options = {
-            'smart_format': True,
-            'punctuate': True,
-            'diarize': False,
-            'interim_results': True,
-            'endpointing': 200,
-            'utterance_end_ms': 2000
-        }
-        self._log_request_details(audio_bytes=audio_bytes, options=options)
+        options = PrerecordedOptions(
+            smart_format=True,
+            punctuate=True,
+            diarize=False,
+            model="nova-2",
+            language="en-US"
+        )
+        self._log_request_details(audio_bytes=audio_bytes, options=options.__dict__)
         
         try:
             # Create temporary file for live streaming
@@ -240,54 +244,54 @@ class DeepgramService:
             
             logger.info(f"Created temporary file for live streaming: {temp_file_path}")
             
-            # Use live streaming API - Deepgram v2 uses different method
+            # Use prerecorded API for simplicity
             with open(temp_file_path, "rb") as audio:
-                source = {'buffer': audio, 'mimetype': 'audio/wav'}
+                buffer_data = audio.read()
                 
-                logger.info("Sending request to Deepgram Live API (/listen)...")
-                # For live streaming, we need to use the streaming API
-                # This is a simplified approach - in production you'd want WebSocket streaming
-                response = await self.deepgram.transcription.prerecorded(source, options)
+                logger.info("Sending request to Deepgram API...")
+                response = self.deepgram.listen.prerecorded.v("1").transcribe_file(
+                    {"buffer": buffer_data}, options
+                )
                 
                 # Log response details
                 self._log_response_details(response, start_time)
                 
                 # Extract transcript from response
                 if response is None:
-                    logger.error("Deepgram Live API returned None response")
+                    logger.error("Deepgram API returned None response")
                     # Clean up
                     os.unlink(temp_file_path)
                     logger.info(f"Cleaned up temporary file: {temp_file_path}")
-                    return "Error: No response from Deepgram Live API"
+                    return "Error: No response from Deepgram API"
                 
-                if not isinstance(response, dict) or 'results' not in response:
-                    logger.error(f"Unexpected live response format: {type(response)}")
+                if not hasattr(response, 'results') or response.results is None:
+                    logger.error(f"Unexpected response format: {type(response)}")
                     # Clean up
                     os.unlink(temp_file_path)
                     logger.info(f"Cleaned up temporary file: {temp_file_path}")
-                    return "Error: Unexpected response format from Deepgram Live API"
+                    return "Error: Unexpected response format from Deepgram API"
                 
                 # Check if results exist and have channels
-                results = response.get('results', {})
-                if not results or 'channels' not in results or not results['channels']:
-                    logger.error("No channels found in Deepgram Live response")
+                results = response.results
+                if not results.channels or len(results.channels) == 0:
+                    logger.error("No channels found in Deepgram response")
                     # Clean up
                     os.unlink(temp_file_path)
                     logger.info(f"Cleaned up temporary file: {temp_file_path}")
-                    return "Error: No audio channels found in live response"
+                    return "Error: No audio channels found in response"
                 
                 # Check if alternatives exist
-                channel = results['channels'][0]
-                if 'alternatives' not in channel or not channel['alternatives']:
-                    logger.error("No alternatives found in Deepgram Live response")
+                channel = results.channels[0]
+                if not channel.alternatives or len(channel.alternatives) == 0:
+                    logger.error("No alternatives found in Deepgram response")
                     # Clean up
                     os.unlink(temp_file_path)
                     logger.info(f"Cleaned up temporary file: {temp_file_path}")
                     return "Error: No transcription alternatives found"
                 
                 # Extract transcript
-                alternative = channel['alternatives'][0]
-                transcript = alternative.get('transcript', '')
+                alternative = channel.alternatives[0]
+                transcript = alternative.transcript
                 
                 # Handle empty transcript
                 if not transcript or transcript.strip() == '':
@@ -321,16 +325,16 @@ class DeepgramService:
             return "Mock transcription: Please set DEEPGRAM_API_KEY environment variable"
         
         # Log request details
-        options = {
-            'smart_format': True,
-            'punctuate': True,
-            'diarize': False,
-            'model': 'nova-2',  # Use the latest model
-            'language': 'en-US',
-            'filler_words': False,
-            'profanity_filter': False
-        }
-        self._log_request_details(audio_bytes=audio_bytes, options=options)
+        options = PrerecordedOptions(
+            smart_format=True,
+            punctuate=True,
+            diarize=False,
+            model="nova-2",  # Use the latest model
+            language="en-US",
+            filler_words=False,
+            profanity_filter=False
+        )
+        self._log_request_details(audio_bytes=audio_bytes, options=options.__dict__)
         
         try:
             # Create temporary file
