@@ -41,11 +41,14 @@ console.log('✅ Directional light added');
 
 // Initialize Looking Glass configuration
 const config = LookingGlassConfig;
-config.targetY = 1;
-config.targetZ = 0;
-config.targetDiam = 3;
-config.fovy = (14 * Math.PI) / 180;
-console.log('✅ Looking Glass config initialized');
+config.targetY = 0;        // Center the target
+config.targetZ = 0;        // Keep at origin
+config.targetDiam = 4.0;   // Larger diameter for full model visibility
+config.fovy = (30 * Math.PI) / 180;  // Wider field of view
+config.depthiness = 1.5;   // Increase depth perception
+config.nearPlane = 0.1;    // Close near plane
+config.farPlane = 100.0;   // Far plane for full depth
+console.log('✅ Looking Glass config optimized for full model visibility');
 
 // Initialize Looking Glass WebXR Polyfill
 try {
@@ -1047,6 +1050,46 @@ window.centerModel = centerModel;
 window.adjustCamera = adjustCamera;
 window.setupModelForLookingGlass = setupModelForLookingGlass;
 
+// Test Looking Glass setup manually
+window.testLookingGlassSetup = () => {
+    console.log('🔮 Testing Looking Glass setup...');
+    if (currentModel) {
+        setupModelForLookingGlass();
+        console.log('✅ Looking Glass setup applied. Model should be better positioned.');
+    } else {
+        console.warn('❌ No model loaded to setup for Looking Glass');
+    }
+};
+
+// Fix paper-thin Looking Glass appearance
+window.fixLookingGlassView = () => {
+    console.log('🔧 Fixing Looking Glass paper-thin appearance...');
+    
+    if (currentModel) {
+        // Reset everything
+        currentModel.scale.set(1, 1, 1);
+        currentModel.rotation.set(0, 0, 0);
+        currentModel.position.set(0, 0, 0);
+        
+        // Get bounds and center
+        const box = new THREE.Box3().setFromObject(currentModel);
+        const center = box.getCenter(new THREE.Vector3());
+        const size = box.getSize(new THREE.Vector3());
+        
+        // Position for full visibility
+        currentModel.position.set(-center.x, -center.y, -center.z - 1);
+        
+        // Set camera back further
+        camera.position.set(0, 0, 5);
+        camera.lookAt(0, 0, 0);
+        camera.updateProjectionMatrix();
+        
+        console.log('✅ Looking Glass view fixed - model should appear fully 3D now');
+    } else {
+        console.warn('❌ No model loaded to fix');
+    }
+};
+
 // Morph target functions
 window.setFacialExpression = setFacialExpression;
 window.setMorphTarget = setMorphTarget;
@@ -1066,32 +1109,96 @@ window.listFacialExpressions = () => {
     console.log('Available facial expressions:', Object.keys(facialExpressions));
     return Object.keys(facialExpressions);
 };
+// Global variable to control mouth test loop
+let mouthTestInterval = null;
+
 window.testMouthOpen = () => {
-    console.log('🧪 Testing REALISTIC LIP MOVEMENT and mouth gap');
+    console.log('🧪 Starting realistic speech mouth movement loop');
     
-    // Focus on natural lip shapes and mouth opening
-    lerpMorphTarget('viseme_sil', 0.0, 0.5);   // Clear any closure
-    lerpMorphTarget('viseme_aa', 0.9, 0.8);    // Wide lip separation (not extreme)
+    // Stop any existing loop
+    if (mouthTestInterval) {
+        clearInterval(mouthTestInterval);
+    }
     
-    setTimeout(() => {
-        console.log('👄 Switching to round lip shape...');
-        lerpMorphTarget('viseme_aa', 0.0, 0.5);
-        lerpMorphTarget('viseme_O', 0.8, 0.8);   // Round lip pucker
-    }, 1500);
+    // Array of mouth shapes that simulate realistic speech (increased intensity for clearer visibility)
+    const speechShapes = [
+        { name: 'Hello', viseme: 'viseme_sil', intensity: 0.2, description: 'neutral/silence' },
+        { name: 'H', viseme: 'viseme_aa', intensity: 0.9, description: 'open vowel' },
+        { name: 'E', viseme: 'viseme_E', intensity: 0.9, description: 'eh sound' },
+        { name: 'L', viseme: 'viseme_DD', intensity: 0.8, description: 'tongue to teeth' },
+        { name: 'O', viseme: 'viseme_O', intensity: 1.0, description: 'rounded oh' },
+        { name: 'pause', viseme: 'viseme_sil', intensity: 0.3, description: 'brief pause' },
+        { name: 'W', viseme: 'viseme_U', intensity: 0.9, description: 'rounded lips' },
+        { name: 'OR', viseme: 'viseme_aa', intensity: 0.9, description: 'open sound' },
+        { name: 'L', viseme: 'viseme_DD', intensity: 0.8, description: 'tongue position' },
+        { name: 'D', viseme: 'viseme_DD', intensity: 0.8, description: 'tongue-teeth' },
+        { name: 'pause', viseme: 'viseme_sil', intensity: 0.2, description: 'word break' },
+        { name: 'M', viseme: 'viseme_PP', intensity: 1.0, description: 'lip closure' },
+        { name: 'Y', viseme: 'viseme_I', intensity: 0.8, description: 'ee sound' },
+        { name: 'F', viseme: 'viseme_FF', intensity: 0.9, description: 'lip-teeth' },
+        { name: 'R', viseme: 'viseme_RR', intensity: 0.8, description: 'r sound' },
+        { name: 'I', viseme: 'viseme_I', intensity: 0.9, description: 'ee vowel' },
+        { name: 'E', viseme: 'viseme_E', intensity: 0.8, description: 'eh ending' },
+        { name: 'N', viseme: 'viseme_nn', intensity: 0.8, description: 'nasal sound' },
+        { name: 'D', viseme: 'viseme_DD', intensity: 0.8, description: 'tongue contact' },
+        { name: 'rest', viseme: 'viseme_sil', intensity: 0.2, description: 'return to rest' }
+    ];
     
-    setTimeout(() => {
-        console.log('👄 Testing lip closure/release...');
-        lerpMorphTarget('viseme_O', 0.0, 0.5);
-        lerpMorphTarget('viseme_PP', 0.8, 0.8);  // Lip contact and release
-    }, 3000);
+    let currentShapeIndex = 0;
     
-    setTimeout(() => {
-        console.log('🧪 Natural lip closure...');
-        ['viseme_aa', 'viseme_O', 'viseme_PP'].forEach(v => {
-            lerpMorphTarget(v, 0.0, 1.0);
+    // Function to clear all visemes before applying new one
+    const clearAllVisemes = () => {
+        const allVisemes = ['viseme_sil', 'viseme_aa', 'viseme_E', 'viseme_I', 'viseme_O', 
+                           'viseme_U', 'viseme_PP', 'viseme_FF', 'viseme_TH', 'viseme_DD', 
+                           'viseme_kk', 'viseme_CH', 'viseme_SS', 'viseme_nn', 'viseme_RR'];
+        allVisemes.forEach(viseme => {
+            lerpMorphTarget(viseme, 0.0, 0.3);
         });
-        lerpMorphTarget('viseme_sil', 0.3, 1.0);  // Natural rest position
-    }, 4500);
+    };
+    
+    // Start the continuous loop
+    mouthTestInterval = setInterval(() => {
+        const currentShape = speechShapes[currentShapeIndex];
+        
+        console.log(`👄 ${currentShape.description} (${currentShape.name})`);
+        
+        // Clear all visemes first
+        clearAllVisemes();
+        
+        // Apply the current shape after a brief delay
+        setTimeout(() => {
+            lerpMorphTarget(currentShape.viseme, currentShape.intensity, 0.4);
+        }, 100);
+        
+        // Move to next shape
+        currentShapeIndex = (currentShapeIndex + 1) % speechShapes.length;
+        
+    }, 250); // Change every 500ms for natural speech rhythm
+    
+    console.log('Use stopMouthTest() to stop the speech loop');
+};
+
+window.stopMouthTest = () => {
+    if (mouthTestInterval) {
+        clearInterval(mouthTestInterval);
+        mouthTestInterval = null;
+        console.log('🛑 Stopped speech mouth test loop');
+        
+        // Clear all visemes and return to neutral position
+        const allVisemes = ['viseme_sil', 'viseme_aa', 'viseme_E', 'viseme_I', 'viseme_O', 
+                           'viseme_U', 'viseme_PP', 'viseme_FF', 'viseme_TH', 'viseme_DD', 
+                           'viseme_kk', 'viseme_CH', 'viseme_SS', 'viseme_nn', 'viseme_RR'];
+        allVisemes.forEach(viseme => {
+            lerpMorphTarget(viseme, 0.0, 1.0);
+        });
+        
+        // Set to neutral rest position
+        setTimeout(() => {
+            lerpMorphTarget('viseme_sil', 0.1, 1.0);
+        }, 500);
+    } else {
+        console.log('No mouth test loop is currently running');
+    }
 };
 window.testBlink = () => {
     console.log('🧪 Testing blink');
@@ -1637,32 +1744,34 @@ function setupModelForLookingGlass() {
     
     console.log('🔮 Setting up model for Looking Glass compatibility...');
     
-    // 1. Resize to 80%
-    //resizeModel(0.5);
+    // 1. Reset model transformations to prevent issues
+    currentModel.scale.set(1, 1, 1);
+    currentModel.rotation.set(0, 0, 0);
+    currentModel.position.set(0, 0, 0);
     
-    // 2. Position model at origin for Looking Glass
-    // Looking Glass works best when the model is centered at (0,0,0)
+    // 2. Get fresh model bounds
+    currentModel.updateMatrixWorld(true);
     const box = new THREE.Box3().setFromObject(currentModel);
     const center = box.getCenter(new THREE.Vector3());
     const size = box.getSize(new THREE.Vector3());
     
-    // Position model to show full body (move down to show legs)  
-    currentModel.position.set(-center.x, -center.y - size.y * 0.3, -center.z);
+    // 3. Center the model properly for Looking Glass
+    currentModel.position.set(-center.x, -center.y, -center.z);
     
-    // 3. Ensure model faces forward (Looking Glass expects Z-forward)
-    // Don't rotate GLB models as they should already face the right direction
-    // VRM models are already rotated 180° in the loading code if needed
-    
-    // 4. Ensure model is within Looking Glass optimal viewing volume
-    // Looking Glass config: targetDiam = 3, so model should fit within this
+    // 4. Scale model appropriately for Looking Glass viewing volume
+    // Looking Glass config: targetDiam = 4.0, so model should fit comfortably
     const maxDimension = Math.max(size.x, size.y, size.z);
-    if (maxDimension > 2.5) {
-        const scaleFactor = 2.5 / maxDimension;
+    if (maxDimension > 3.0) {
+        const scaleFactor = 3.0 / maxDimension;
         currentModel.scale.multiplyScalar(scaleFactor);
-        console.log(`📏 Model scaled down by ${scaleFactor} for Looking Glass viewing volume`);
+        console.log(`📏 Model scaled to ${scaleFactor.toFixed(2)} for Looking Glass viewing volume`);
     }
     
-    // 5. Remove any existing transformations that might interfere
+    // 5. Ensure model has proper depth positioning
+    // Move model slightly back to ensure full 3D appearance
+    currentModel.position.z = -0.5;
+    
+    // 6. Update world matrix
     currentModel.updateMatrixWorld(true);
     
     console.log('✅ Model setup complete for Looking Glass:', {
@@ -1884,10 +1993,42 @@ console.log('✅ VR button added to body');
 
 // Add XR session handling for Looking Glass
 function StartXRSession() {
+    console.log('🔮 XR Session started - Optimizing for Looking Glass...');
+    
     // Reposition UI for clear viewing in Looking Glass
     uiRoot.position.x = 0.8;
     uiRoot.position.z = 0.5;
-    console.log('✅ XR Session started - UI repositioned for Looking Glass');
+    
+    // Fix model positioning for Looking Glass to prevent paper-thin appearance
+    if (currentModel) {
+        // Reset any problematic transformations
+        currentModel.scale.set(1, 1, 1);
+        currentModel.rotation.set(0, 0, 0);
+        
+        // Get model bounds for proper positioning
+        const box = new THREE.Box3().setFromObject(currentModel);
+        const center = box.getCenter(new THREE.Vector3());
+        const size = box.getSize(new THREE.Vector3());
+        
+        // Position model properly in 3D space
+        currentModel.position.set(-center.x, -center.y, -center.z);
+        
+        // Ensure model is at proper distance from camera for full visibility
+        const maxDimension = Math.max(size.x, size.y, size.z);
+        if (maxDimension > 3.5) {
+            const scaleFactor = 3.5 / maxDimension;
+            currentModel.scale.multiplyScalar(scaleFactor);
+        }
+        
+        console.log('✅ Model repositioned for Looking Glass - should appear fully 3D');
+    }
+    
+    // Position camera for optimal Looking Glass viewing
+    camera.position.set(0, 0, 4);
+    camera.lookAt(0, 0, 0);
+    camera.updateProjectionMatrix();
+    
+    console.log('✅ XR Session setup complete - Model should appear fully 3D in Looking Glass');
 }
 
 function EndXRSession() {
