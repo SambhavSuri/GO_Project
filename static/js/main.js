@@ -694,7 +694,7 @@ function listExpressions() {
 
 // Start speaking animation with full synchronization
 function startSpeaking() {
-    console.log('🎤 startSpeaking() called');
+    console.log('🎤 startSpeaking() called - triggering testMouthOpen');
     
     // Check if we have VRM or GLB model
     const hasVRM = currentVrm && currentVrm.expressionManager;
@@ -707,17 +707,11 @@ function startSpeaking() {
     
     console.log(`🎤 Model type detected: ${hasVRM ? 'VRM' : 'GLB with morph targets'}`);
     
+    // Call the existing testMouthOpen function
+    testMouthOpen();
+    
     isSpeaking = true;
-    speakingStartTime = clock.getElapsedTime();
-    lastBlinkTime = speakingStartTime;
-    lastMouthChangeTime = speakingStartTime;
-    mouthState = 'closed';
-    
-    // Don't call playAnimationSmooth here if we're already being called from it
-    // This prevents infinite loops
-    
-    console.log(`🎤 Started speaking facial expressions: ${hasVRM ? 'VRM' : 'morph target'} system`);
-    console.log(`🎤 Speaking state: isSpeaking=${isSpeaking}, mouthState=${mouthState}`);
+    console.log('🎤 Mouth animation started via testMouthOpen()');
 }
 
 // Enhanced speaking function that combines talking animation with expressions
@@ -735,7 +729,7 @@ function startSynchronizedSpeaking() {
 
 // Stop speaking animation
 function stopSpeaking() {
-    console.log('🔇 stopSpeaking() called');
+    console.log('🔇 stopSpeaking() called - triggering stopMouthTest');
     
     const hasVRM = currentVrm && currentVrm.expressionManager;
     const hasGLB = currentModel && Object.keys(morphTargets).length > 0;
@@ -745,23 +739,17 @@ function stopSpeaking() {
         return;
     }
     
+    // Call the existing stopMouthTest function
+    stopMouthTest();
+    
     isSpeaking = false;
     
-    // Reset expressions to neutral
+    // Reset VRM expressions if needed
     if (hasVRM) {
         currentVrm.expressionManager.resetValues();
-    } else if (hasGLB) {
-        // Reset all visemes to neutral/silence
-        const allVisemes = ['viseme_sil', 'viseme_PP', 'viseme_FF', 'viseme_TH', 'viseme_DD', 'viseme_kk', 'viseme_CH', 'viseme_SS', 'viseme_nn', 'viseme_RR', 'viseme_aa', 'viseme_E', 'viseme_I', 'viseme_O', 'viseme_U'];
-        allVisemes.forEach(viseme => {
-            lerpMorphTarget(viseme, 0.0, 0.3);
-        });
-        // Set slight silence expression
-        lerpMorphTarget('viseme_sil', 0.2, 0.3);
-        currentFacialExpression = "default";
     }
     
-    console.log('🔇 Stopped speaking animation and returned to idle');
+    console.log('🔇 Stopped mouth animation via stopMouthTest() and returned to idle');
 }
 
 // Update speaking animation
@@ -1173,7 +1161,7 @@ window.testMouthOpen = () => {
         // Move to next shape
         currentShapeIndex = (currentShapeIndex + 1) % speechShapes.length;
         
-    }, 250); // Change every 500ms for natural speech rhythm
+    }, 300); // Change every 500ms for natural speech rhythm
     
     console.log('Use stopMouthTest() to stop the speech loop');
 };
@@ -1200,6 +1188,8 @@ window.stopMouthTest = () => {
         console.log('No mouth test loop is currently running');
     }
 };
+
+
 window.testBlink = () => {
     console.log('🧪 Testing blink');
     lerpMorphTarget('eyeBlinkLeft', 1.0, 1.0);

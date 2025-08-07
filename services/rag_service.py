@@ -7,7 +7,8 @@ from typing import List, Dict, Any
 class RAGService:
     def __init__(self):
         self.rag_endpoint = os.getenv('RAG_ENDPOINT_URL')
-        self.rag_api_key = os.getenv('RAG_API_KEY')
+        # Use the specific Bearer token you provided
+        self.rag_api_key = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NTUxNTQzMTh9.17uZyzBqOmjpQKjcrgZ5xAfCay4lSvU3WYjnHW4aopg'
         self.conversation_history = []
         
         # Validate RAG endpoint configuration
@@ -15,6 +16,7 @@ class RAGService:
             print("⚠️  Warning: RAG_ENDPOINT_URL not set. Using fallback responses.")
         else:
             print(f"✅ RAG endpoint configured: {self.rag_endpoint}")
+            print(f"✅ RAG API key configured: {self.rag_api_key[:20]}...")
     
     def process_query(self, query: str) -> str:
         """
@@ -39,13 +41,10 @@ class RAGService:
             return self._generate_fallback_response(query)
         
         try:
-            # Prepare request payload
+            # Prepare request payload (simplified to match your working format)
             payload = {
-                "query": query,  # Changed from "user_query" to "query" to match RAG endpoint
-                "history": self.conversation_history[-5:],  # Last 5 messages for context
-                "response_mode": "summary",
-                "max_tokens": 500,
-                "temperature": 0.7
+                "query": query,
+                "n_results": 1
             }
             
             print(f"🔍 RAG Request: {self.rag_endpoint}")
@@ -53,19 +52,16 @@ class RAGService:
             
             # Prepare headers
             headers = {
-                "Content-Type": "application/json"
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {self.rag_api_key}"
             }
-            
-            # Add API key if provided
-            if self.rag_api_key:
-                headers["Authorization"] = f"Bearer {self.rag_api_key}"
             
             # Make request to RAG endpoint
             response = requests.post(
                 self.rag_endpoint,
                 json=payload,
                 headers=headers,
-                timeout=120  # 30 second timeout
+                timeout=30  # 30 second timeout
             )
             
             # Check if request was successful
@@ -75,13 +71,12 @@ class RAGService:
                     result = response.json()
                     print(f"✅ RAG Response: {result}")
                     
-                    # Handle different response formats
+                    # Handle response format (your RAG returns "answer" field)
                     if isinstance(result, dict):
-                        # Try different possible response field names
-                        if 'response' in result:
-                            return result['response']
-                        elif 'answer' in result:
+                        if 'answer' in result:
                             return result['answer']
+                        elif 'response' in result:
+                            return result['response']
                         elif 'text' in result:
                             return result['text']
                         elif 'content' in result:
@@ -195,18 +190,13 @@ class RAGService:
         try:
             test_payload = {
                 "query": "test",
-                "history": [],  # Changed from "conversation_history" to "history" to match
-                "response_mode": "summary",
-                "max_tokens": 10,
-                "temperature": 0.1
+                "n_results": 1
             }
             
             headers = {
-                "Content-Type": "application/json"
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {self.rag_api_key}"
             }
-            
-            if self.rag_api_key:
-                headers["Authorization"] = f"Bearer {self.rag_api_key}"
             
             response = requests.post(
                 self.rag_endpoint,
