@@ -51,7 +51,7 @@
     <!-- Manual test controls -->
     <div class="status-overlay" style="top: 20px; right: 20px; left: auto;">
         <div class="status-item"><strong>🧪 Manual Tests</strong></div>
-        <button onclick="testThinking()" style="margin: 5px; padding: 8px; background: #333; color: #ffaa00; border: 1px solid #ffaa00; border-radius: 4px; cursor: pointer;">🤔 Test Thinking</button><br>
+                    <button onclick="startCall()" style="margin: 5px; padding: 8px; background: #333; color: #00ff88; border: 1px solid #00ff88; border-radius: 4px; cursor: pointer;">📞 Start Call</button><br>
         <button onclick="testTalking()" style="margin: 5px; padding: 8px; background: #333; color: #00aaff; border: 1px solid #00aaff; border-radius: 4px; cursor: pointer;">🎤 Test Talking</button><br>
         <button onclick="testIdle()" style="margin: 5px; padding: 8px; background: #333; color: #aaaaaa; border: 1px solid #aaaaaa; border-radius: 4px; cursor: pointer;">😴 Test Idle</button>
     </div>
@@ -156,14 +156,16 @@
         }, 1000);
         
         // Manual test functions
-        function testThinking() {
-            console.log('🧪 Manual test: Thinking animation');
-            document.getElementById('animation-status').textContent = 'Thinking... (Manual Test)';
-            document.getElementById('animation-status').className = 'thinking';
-            if (window.switchToThinking) {
-                window.switchToThinking();
+        function startCall() {
+            console.log('📞 Starting call - Riley introduction');
+            document.getElementById('animation-status').textContent = 'Riley Speaking...';
+            document.getElementById('animation-status').className = 'speaking';
+            
+            // Call the speakText function with Riley's introduction
+            if (window.speakText) {
+                window.speakText("Hi, This is riley your Advocate and Assistant. How may I help you today?");
             } else {
-                console.warn('switchToThinking not available yet');
+                console.warn('speakText function not available yet');
             }
         }
         

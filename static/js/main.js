@@ -1038,6 +1038,117 @@ window.centerModel = centerModel;
 window.adjustCamera = adjustCamera;
 window.setupModelForLookingGlass = setupModelForLookingGlass;
 
+// Global audio management
+let currentSpeechAudio = null;
+let isTTSSpeaking = false;
+
+// Text-to-Speech function with automatic speaking animation and audio management
+async function speakText(text, voiceId = 'en-US-terrell') {
+    try {
+        // Prevent multiple simultaneous calls
+        if (isTTSSpeaking) {
+            console.log('🔄 Already speaking, stopping current audio first...');
+            stopCurrentSpeech();
+        }
+        
+        console.log('🎤 Converting text to speech:', text);
+        isTTSSpeaking = true;
+        
+        // Call Murf TTS API
+        const response = await fetch('/api/text-to-speech', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                text: text,
+                voiceId: voiceId
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.status === 'success') {
+            console.log('✅ Speech generated successfully:', result.audio);
+            
+            // Stop any existing audio before starting new one
+            stopCurrentSpeech();
+            
+            // Start speaking animation
+            if (window.startSpeaking) {
+                console.log('🎬 Starting speaking animation');
+                window.startSpeaking();
+            }
+            
+            // Create and play audio
+            currentSpeechAudio = new Audio(result.audio);
+            currentSpeechAudio.volume = 0.7;
+            
+            // When audio ends, stop speaking animation
+            currentSpeechAudio.onended = () => {
+                console.log('🎬 Speech ended, stopping speaking animation');
+                isTTSSpeaking = false;
+                currentSpeechAudio = null;
+                if (window.stopSpeaking) {
+                    window.stopSpeaking();
+                }
+            };
+            
+            // Handle audio errors
+            currentSpeechAudio.onerror = (error) => {
+                console.error('❌ Audio playback error:', error);
+                isTTSSpeaking = false;
+                currentSpeechAudio = null;
+                if (window.stopSpeaking) {
+                    window.stopSpeaking();
+                }
+            };
+            
+            // Play the audio
+            await currentSpeechAudio.play();
+            console.log('🎤 Audio playback started');
+            
+            return result.audio;
+            
+        } else {
+            console.error('❌ Failed to generate speech:', result.error);
+            isTTSSpeaking = false;
+            throw new Error(result.error || 'Speech generation failed');
+        }
+    } catch (error) {
+        console.error('❌ Error in speakText function:', error);
+        isTTSSpeaking = false;
+        
+        // Make sure to stop speaking animation if there's an error
+        if (window.stopSpeaking) {
+            window.stopSpeaking();
+        }
+        
+        throw error;
+    }
+}
+
+// Function to stop current speech
+function stopCurrentSpeech() {
+    if (currentSpeechAudio) {
+        console.log('🛑 Stopping current speech audio');
+        currentSpeechAudio.pause();
+        currentSpeechAudio.currentTime = 0;
+        currentSpeechAudio = null;
+    }
+    
+    if (isTTSSpeaking) {
+        isTTSSpeaking = false;
+        if (window.stopSpeaking) {
+            window.stopSpeaking();
+        }
+    }
+}
+
+// Expose the functions globally
+window.speakText = speakText;
+window.stopCurrentSpeech = stopCurrentSpeech;
+
 // Test Looking Glass setup manually
 window.testLookingGlassSetup = () => {
     console.log('🔮 Testing Looking Glass setup...');

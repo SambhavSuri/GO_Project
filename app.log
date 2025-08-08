@@ -1,0 +1,12 @@
+INFO:services.deepgram_service:SSL context configured with certifi bundle: /Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/site-packages/certifi/cacert.pem
+INFO:services.deepgram_service:✅ Deepgram service initialized successfully
+✅ RAG endpoint configured: http://104.208.162.61:8000/query
+✅ RAG API key configured: eyJhbGciOiJIUzI1NiIs...
+AI VRM Chat Server starting on port 5001
+Looking Glass Go device can connect to: ws://localhost:5001
+✅ RAG endpoint configured: http://104.208.162.61:8000/query
+⚠️  RAG endpoint is not accessible
+ * Serving Flask app 'app'
+ * Debug mode: off
+Address already in use
+Port 5001 is in use by another program. Either identify and stop that program, or start the server with a different port.
