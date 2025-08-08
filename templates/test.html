@@ -51,8 +51,9 @@
     <!-- Manual test controls -->
     <div class="status-overlay" style="top: 20px; right: 20px; left: auto;">
         <div class="status-item"><strong>🧪 Manual Tests</strong></div>
-                    <button onclick="startCall()" style="margin: 5px; padding: 8px; background: #333; color: #00ff88; border: 1px solid #00ff88; border-radius: 4px; cursor: pointer;">📞 Start Call</button><br>
-        <button onclick="testTalking()" style="margin: 5px; padding: 8px; background: #333; color: #00aaff; border: 1px solid #00aaff; border-radius: 4px; cursor: pointer;">🎤 Test Talking</button><br>
+                    <button onclick="startCall()" style="margin: 5px; padding: 8px; background: #333; color: #00ff88; border: 1px solid #00ff88; border-radius: 4px; cursor: pointer;">📞 Start Call (Wave + Facial)</button><br>
+        <button onclick="testTalking()" style="margin: 5px; padding: 8px; background: #333; color: #00aaff; border: 1px solid #00aaff; border-radius: 4px; cursor: pointer;">🔄 Toggle Body Animation</button><br>
+        <button onclick="testFacialSpeaking()" style="margin: 5px; padding: 8px; background: #333; color: #ff6600; border: 1px solid #ff6600; border-radius: 4px; cursor: pointer;">👄 Test Facial Speaking</button><br>
         <button onclick="testIdle()" style="margin: 5px; padding: 8px; background: #333; color: #aaaaaa; border: 1px solid #aaaaaa; border-radius: 4px; cursor: pointer;">😴 Test Idle</button>
     </div>
     
@@ -157,28 +158,136 @@
         
         // Manual test functions
         function startCall() {
-            console.log('📞 Starting call - Riley introduction');
-            document.getElementById('animation-status').textContent = 'Riley Speaking...';
+            console.log('📞 Starting call - Playing waving animation first, then Riley introduction with facial expressions only');
+            document.getElementById('animation-status').textContent = 'Riley Greeting...';
             document.getElementById('animation-status').className = 'speaking';
             
-            // Call the speakText function with Riley's introduction
-            if (window.speakText) {
-                window.speakText("Hi, This is riley your Advocate and Assistant. How may I help you today?");
+            // First play waving animation with smile, then return to idle and prepare for speech
+            if (window.playAnimationOnceSmooth) {
+                // Play waving animation with smile expression
+                window.playAnimationOnceSmooth('waving', 0.3, () => {
+                    console.log('🎬 Waving finished, returning to idle state');
+                    
+                    // Reset expression to default
+                    if (window.setFacialExpression) {
+                        window.setFacialExpression('default');
+                    }
+                    
+                    // Return to idle animation to fix hand position
+                    if (window.playAnimationSmooth) {
+                        window.playAnimationSmooth('idle', 0.3);
+                    }
+                    
+                    // Wait a moment for idle transition, then start TTS
+                    setTimeout(() => {
+                        console.log('🎬 Now in idle state, starting TTS with facial expressions');
+                        document.getElementById('animation-status').textContent = 'Riley Speaking...';
+                        
+                        // Generate and play TTS audio - facial expressions will start when audio plays
+                        generateTTSOnly("Hi, This is riley your Advocate and Assistant. How may I help you today?");
+                    }, 500); // Give time for idle transition
+                    
+                }, 'smile'); // Add smile expression during waving
             } else {
-                console.warn('speakText function not available yet');
+                console.warn('Animation functions not available, playing speech only');
+                generateTTSOnly("Hi, This is riley your Advocate and Assistant. How may I help you today?");
+            }
+        }
+        
+        // Function to generate TTS without body animations
+        async function generateTTSOnly(text, voiceId = 'en-US-terrell') {
+            try {
+                console.log('🎤 Generating TTS audio only (no body animation):', text);
+                
+                const response = await fetch('/api/text-to-speech', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        text: text,
+                        voiceId: voiceId
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.status === 'success') {
+                    console.log('✅ TTS audio generated successfully:', result.audio);
+                    
+                    // Create audio element
+                    const audio = new Audio(result.audio);
+                    audio.volume = 0.7;
+                    
+                    // Start facial speaking animation when audio actually starts playing
+                    audio.onplay = () => {
+                        console.log('🎤 TTS audio started playing - now starting facial expressions');
+                        if (window.startSpeaking) {
+                            window.startSpeaking();
+                        }
+                    };
+                    
+                    // When audio ends, stop facial speaking animation
+                    audio.onended = () => {
+                        console.log('🎬 Speech ended, stopping facial animation');
+                        if (window.stopSpeaking) {
+                            window.stopSpeaking();
+                        }
+                        document.getElementById('animation-status').textContent = 'Idle';
+                        document.getElementById('animation-status').className = 'idle';
+                    };
+                    
+                    // Handle audio errors
+                    audio.onerror = (error) => {
+                        console.error('❌ Audio playback error:', error);
+                        if (window.stopSpeaking) {
+                            window.stopSpeaking();
+                        }
+                        document.getElementById('animation-status').textContent = 'Error';
+                        document.getElementById('animation-status').className = 'idle';
+                    };
+                    
+                    // Play the audio
+                    await audio.play();
+                    console.log('🎤 TTS audio playback started');
+                    
+                } else {
+                    console.error('❌ Failed to generate TTS:', result.error);
+                }
+            } catch (error) {
+                console.error('❌ Error in generateTTSOnly function:', error);
+                if (window.stopSpeaking) {
+                    window.stopSpeaking();
+                }
             }
         }
         
         function testTalking() {
-            console.log('🧪 Manual test: Talking animation');
-            document.getElementById('animation-status').textContent = 'Speaking (Manual Test)';
+            console.log('🧪 Manual test: Toggle body talking animation');
+            
+            if (window.toggleManualTalking) {
+                const isNowActive = window.toggleManualTalking();
+                
+                if (isNowActive) {
+                    document.getElementById('animation-status').textContent = 'Body Animation (Active)';
+                    document.getElementById('animation-status').className = 'speaking';
+                } else {
+                    document.getElementById('animation-status').textContent = 'Idle (Animation Stopped)';
+                    document.getElementById('animation-status').className = 'idle';
+                }
+            } else {
+                console.warn('toggleManualTalking function not available yet');
+            }
+        }
+        
+        function testFacialSpeaking() {
+            console.log('🧪 Manual test: Facial speaking animation');
+            document.getElementById('animation-status').textContent = 'Facial Speaking (Manual Test)';
             document.getElementById('animation-status').className = 'speaking';
-            if (window.startSynchronizedSpeaking) {
-                window.startSynchronizedSpeaking();
-            } else if (window.startSpeaking) {
+            if (window.startSpeaking) {
                 window.startSpeaking();
             } else {
-                console.warn('Speaking functions not available yet');
+                console.warn('startSpeaking function not available yet');
             }
         }
         

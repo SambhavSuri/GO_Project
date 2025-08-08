@@ -262,23 +262,13 @@ function playAnimationOnceSmooth(animationName, crossfadeDuration = 0.5, onFinis
     animationSequenceCallback = onFinished;
 }
 
-// Play sequential animations: walkingLeftTurn → idle → waving → idle
+// Play sequential animations: walkingLeftTurn → idle (waving moved to Start Call button)
 function playInitialAnimationSequence() {
-    console.log('🎬 Starting initial animation sequence with fast smooth transitions: walkingLeftTurn → idle → waving → idle');
+    console.log('🎬 Starting initial animation sequence: walkingLeftTurn → idle (ready for interaction)');
     
     playAnimationOnce('walkingLeftTurn', () => {
-        console.log('🎬 walkingLeftTurn finished, quickly transitioning to idle');
-        playAnimationSmooth('idle', 0.4); // Faster crossfade to idle
-        
-        // After a shorter delay, play waving animation with quick transition and smile
-        setTimeout(() => {
-            console.log('🎬 Starting waving animation with quick crossfade and smile');
-            playAnimationOnceSmooth('waving', 0.3, () => {
-                console.log('🎬 waving finished, quickly returning to idle and resetting expression');
-                setFacialExpression('default'); // Reset to neutral expression
-                playAnimationSmooth('idle', 0.4); // Quick return to idle
-            }, 'smile'); // Add smile expression during waving
-        }, 1500); // Wait only 1.5 seconds before waving
+        console.log('🎬 walkingLeftTurn finished, transitioning to idle - ready for Start Call');
+        playAnimationSmooth('idle', 0.4); // Transition to idle and wait for user interaction
     });
 }
 
@@ -1042,6 +1032,9 @@ window.setupModelForLookingGlass = setupModelForLookingGlass;
 let currentSpeechAudio = null;
 let isTTSSpeaking = false;
 
+// Global animation state tracking
+let isManualTalkingActive = false;
+
 // Text-to-Speech function with automatic speaking animation and audio management
 async function speakText(text, voiceId = 'en-US-terrell') {
     try {
@@ -1074,24 +1067,24 @@ async function speakText(text, voiceId = 'en-US-terrell') {
             // Stop any existing audio before starting new one
             stopCurrentSpeech();
             
-            // Start speaking animation
-            if (window.startSpeaking) {
-                console.log('🎬 Starting speaking animation');
-                window.startSpeaking();
-            }
+            // Start full body talking animation for TTS
+            console.log('🎬 Starting full body talking animation for TTS');
+            playAnimationSmooth('talking', 0.3);
+            // Reset manual talking state since TTS is taking control
+            isManualTalkingActive = false;
             
             // Create and play audio
             currentSpeechAudio = new Audio(result.audio);
             currentSpeechAudio.volume = 0.7;
             
-            // When audio ends, stop speaking animation
+            // When audio ends, stop talking animation and return to idle
             currentSpeechAudio.onended = () => {
-                console.log('🎬 Speech ended, stopping speaking animation');
+                console.log('🎬 Speech ended, returning to idle animation');
                 isTTSSpeaking = false;
                 currentSpeechAudio = null;
-                if (window.stopSpeaking) {
-                    window.stopSpeaking();
-                }
+                playAnimationSmooth('idle', 0.3);
+                // Ensure manual talking state is reset
+                isManualTalkingActive = false;
             };
             
             // Handle audio errors
@@ -1099,9 +1092,7 @@ async function speakText(text, voiceId = 'en-US-terrell') {
                 console.error('❌ Audio playback error:', error);
                 isTTSSpeaking = false;
                 currentSpeechAudio = null;
-                if (window.stopSpeaking) {
-                    window.stopSpeaking();
-                }
+                playAnimationSmooth('idle', 0.3);
             };
             
             // Play the audio
@@ -1119,10 +1110,8 @@ async function speakText(text, voiceId = 'en-US-terrell') {
         console.error('❌ Error in speakText function:', error);
         isTTSSpeaking = false;
         
-        // Make sure to stop speaking animation if there's an error
-        if (window.stopSpeaking) {
-            window.stopSpeaking();
-        }
+        // Make sure to return to idle if there's an error
+        playAnimationSmooth('idle', 0.3);
         
         throw error;
     }
@@ -1139,15 +1128,29 @@ function stopCurrentSpeech() {
     
     if (isTTSSpeaking) {
         isTTSSpeaking = false;
-        if (window.stopSpeaking) {
-            window.stopSpeaking();
-        }
+        playAnimationSmooth('idle', 0.3);
+    }
+}
+
+// Toggle manual talking animation function
+function toggleManualTalking() {
+    if (isManualTalkingActive) {
+        console.log('🛑 Stopping manual talking animation, returning to idle');
+        playAnimationSmooth('idle', 0.3);
+        isManualTalkingActive = false;
+        return false; // Animation stopped
+    } else {
+        console.log('▶️ Starting manual talking animation');
+        playAnimationSmooth('talking', 0.3);
+        isManualTalkingActive = true;
+        return true; // Animation started
     }
 }
 
 // Expose the functions globally
 window.speakText = speakText;
 window.stopCurrentSpeech = stopCurrentSpeech;
+window.toggleManualTalking = toggleManualTalking;
 
 // Test Looking Glass setup manually
 window.testLookingGlassSetup = () => {
