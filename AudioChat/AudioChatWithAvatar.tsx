@@ -34,16 +34,7 @@ export function AudioChatWithAvatar() {
   const speakText = context?.speakText;
   const setIsAvatarSessionActive = context?.setIsAvatarSessionActive;
   const onAudioChunkFinished = context?.onAudioChunkFinished;
-  const initializeAudioContext = context?.initializeAudioContext;
-  
-  // Available VRM models
-  const availableModels = [
-    { name: 'Avatar Main (GLB)', path: '/static/assets/6891a06aece5d61d2d726697.glb' },
-    { name: 'Avatar C (VRM)', path: '/static/models/AvatarSample_C.vrm' },
-    { name: 'Avatar A (VRM)', path: '/static/assets/AvatarSample_A.vrm' },
-    { name: 'Viverse Avatar (VRM)', path: '/static/assets/viverse_avatar_model_161376.vrm' },
-  ];
-  
+  const initializeAudioContext = context?.initializeAudioContext;  
   // Update refs when state changes - only if context values are available
   useEffect(() => {
     if (context) {
@@ -247,7 +238,7 @@ export function AudioChatWithAvatar() {
     <div className="w-full flex flex-row gap-4 h-full">
       {/* Left side - Avatar and Controls */}
       <div className="flex flex-col rounded-xl bg-white border border-gray-200 overflow-hidden flex-1">
-        <div className="relative w-full aspect-video overflow-hidden flex flex-col items-center justify-center bg-gray-50">
+        <div className="relative w-full aspect-video flex flex-col items-center justify-center bg-gray-50 ">
           {showStartButton ? (
             <div className="w-full h-full flex flex-col items-center justify-center p-8 text-gray-600">
               <div className="flex flex-col items-center space-y-4">
@@ -281,7 +272,7 @@ export function AudioChatWithAvatar() {
               />
               
               {/* Avatar Model Selector */}
-              <div className="absolute top-4 right-4 bg-white bg-opacity-90 rounded-lg p-2">
+              {/* <div className="absolute top-4 right-4 bg-white bg-opacity-90 rounded-lg p-2">
                 <select 
                   value={selectedModel}
                   onChange={(e) => setSelectedModel(e.target.value)}
@@ -294,10 +285,10 @@ export function AudioChatWithAvatar() {
                     </option>
                   ))}
                 </select>
-              </div>
+              </div> */}
               
               {/* Status Overlay */}
-              <div className="absolute bottom-4 left-4 bg-black bg-opacity-50 text-white px-4 py-2 rounded-lg">
+              {/* <div className="absolute bottom-4 left-4 bg-black bg-opacity-50 text-white px-4 py-2 rounded-lg">
                 <h3 className="text-sm font-semibold mb-1">
                   {isRecording ? "Listening..." : 
                    isWelcomeSpeaking ? "Initializing..." : 
@@ -308,7 +299,7 @@ export function AudioChatWithAvatar() {
                 {showStartTalkingPrompt && !shouldDisableButtons && (
                   <p className="text-green-400 text-xs">Start talking...</p>
                 )}
-              </div>
+              </div> */}
             </div>
           )}
         </div>
@@ -323,9 +314,9 @@ export function AudioChatWithAvatar() {
       </div>
       
       {/* Right side - Chat History */}
-      <div className="w-80 flex flex-col h-full">
+      <div className={`w-80 flex flex-col h-full ${isStarted ? '!min-h-[85vh] !max-h-[85vh]' : ''}`}>
         {isStarted ? (
-          <div className="flex-1 bg-white rounded-lg border border-gray-200 overflow-hidden">
+          <div className="flex-1 bg-white rounded-lg border border-gray-200 overflow-hidden !overflow-y-auto">
             <AudioMessageHistory />
           </div>
         ) : (
