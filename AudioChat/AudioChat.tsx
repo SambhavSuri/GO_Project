@@ -253,9 +253,9 @@ export function AudioChat() {
   const shouldDisableButtons = isInitializing || isWelcomeSpeaking || isAvatarTalking;
 
   return (
-    <div className="w-full flex flex-row gap-4 h-full">
+    <div className="w-full flex flex-row gap-4 h-full max-h-[70vh]">
       {/* Left side - Avatar and Controls */}
-      <div className="flex flex-col rounded-xl bg-white border border-gray-200 overflow-hidden flex-1">
+      <div className="flex flex-col rounded-xl bg-white border border-gray-200 overflow-hidden flex-1 max-h-[70vh]">
         <div className="relative w-full aspect-video overflow-hidden flex flex-col items-center justify-center bg-gray-50">
           {showStartButton ? (
             <div className="w-full h-full flex flex-col items-center justify-center p-8 text-gray-600">
@@ -322,9 +322,9 @@ export function AudioChat() {
       </div>
       
       {/* Right side - Chat History */}
-      <div className="w-80 flex flex-col h-full">
+      <div className="w-80 flex flex-col h-full max-h-[70vh]">
         {isStarted ? (
-          <div className="flex-1 bg-white rounded-lg border border-gray-200 overflow-hidden">
+          <div className="flex-1 bg-white rounded-lg border border-gray-200 overflow-hidden overflow-y-auto">
             <AudioMessageHistory />
           </div>
         ) : (

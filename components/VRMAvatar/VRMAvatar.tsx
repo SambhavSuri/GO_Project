@@ -394,7 +394,7 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
       
       {/* Animation status indicator */}
       <div className="absolute bottom-4 left-4 bg-black bg-opacity-50 text-white px-3 py-1 rounded-full text-sm">
-        {isAvatarTalking ? '🎤 Speaking' : isProcessingResponse ? '🤔 Thinking' : '😊 Ready'}
+        {isAvatarTalking ? 'Speaking' : isProcessingResponse ? 'Thinking' : 'Ready'}
       </div>
     </div>
   );

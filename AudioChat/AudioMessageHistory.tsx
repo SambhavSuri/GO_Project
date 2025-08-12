@@ -30,7 +30,7 @@ export const AudioMessageHistory = () => {
   }, [conversationHistory]);
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col !min-h-full !max-h-full">
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {conversationHistory.length === 0 && !currentAiResponse ? (
           <div className="text-center text-gray-500">
