@@ -32,7 +32,7 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
   const [modelType, setModelType] = useState<'vrm' | 'glb'>('glb');
   
   // Get audio context for syncing with speech
-  const { isAvatarTalking, isProcessingResponse } = useAudioContext();
+  const { isAvatarTalking, isProcessingResponse, onGLBAudioStart } = useAudioContext();
   
   // Speaking animation state for GLB models
   const speakingIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -102,7 +102,7 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
     // Handle realistic mouth movements using visemes for speaking animation
     if (mouthStateRef.current === 'closed' && currentTime - lastMouthChangeTimeRef.current >= mouthCloseTime) {
       // Reset all visemes first
-      ['viseme_sil', 'viseme_aa', 'viseme_E', 'viseme_I', 'viseme_O', 'viseme_U', 'viseme_PP', 'viseme_DD', 'viseme_FF', 'viseme_TH', 'viseme_CH', 'viseme_SS', 'viseme_nn', 'viseme_RR', 'viseme_kk'].forEach(viseme => {
+      ['viseme_sil', 'viseme_aa', 'viseme_E', 'viseme_I', 'viseme_O', 'viseme_U', 'viseme_PP'].forEach(viseme => {
         lerpMorphTarget(viseme, 0.0, 0.1);
       });
       
@@ -128,7 +128,7 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
     } else if (mouthStateRef.current === 'open' && currentTime - lastMouthChangeTimeRef.current >= mouthOpenTime) {
       // Close mouth - use silence viseme
       // Reset all speaking visemes for natural lip closure
-      ['viseme_aa', 'viseme_E', 'viseme_I', 'viseme_O', 'viseme_U', 'viseme_PP', 'viseme_DD', 'viseme_FF', 'viseme_TH', 'viseme_CH', 'viseme_SS', 'viseme_nn', 'viseme_RR', 'viseme_kk'].forEach(viseme => {
+      ['viseme_aa', 'viseme_E', 'viseme_I', 'viseme_O', 'viseme_U', 'viseme_PP'].forEach(viseme => {
         lerpMorphTarget(viseme, 0.0, 0.2);
       });
       
@@ -146,7 +146,7 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
   const startSpeakingAnimation = () => {
     if (modelType !== 'glb' || speakingIntervalRef.current) return;
     
-    console.log('🎤 Starting GLB speaking animation');
+    console.log('🎤 Starting GLB speaking animation (triggered by audio playback)');
     initializeVisemeMapping();
     
     // Reset mouth state
@@ -178,6 +178,64 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
       });
       console.log('🔒 Lips completely sealed for idle state - all visemes reset to 0');
     }
+  };
+
+  // Function to fix material issues for proper rendering
+  const fixModelMaterials = (model: THREE.Object3D) => {
+    console.log('🎨 Fixing materials for proper rendering...');
+    
+    model.traverse((child) => {
+      if (child instanceof THREE.Mesh) {
+        // Ensure mesh casts and receives shadows
+        child.castShadow = true;
+        child.receiveShadow = true;
+        
+        // Fix material properties
+        if (child.material) {
+          const material = Array.isArray(child.material) ? child.material[0] : child.material;
+          
+          if (material instanceof THREE.MeshStandardMaterial || material instanceof THREE.MeshPhysicalMaterial) {
+            // Ensure materials are properly lit
+            material.needsUpdate = true;
+            
+            // Fix common rendering issues
+            material.side = THREE.FrontSide; // Ensure proper face culling
+            material.transparent = material.opacity < 1.0;
+            
+            // Improve material properties for better visibility
+            if (material.roughness !== undefined) {
+              material.roughness = Math.min(material.roughness, 0.8); // Prevent overly rough surfaces
+            }
+            
+            if (material.metalness !== undefined) {
+              material.metalness = Math.max(material.metalness, 0.1); // Add slight metallness for better lighting
+            }
+            
+            // Special handling for eye materials (common naming patterns)
+            const meshName = child.name.toLowerCase();
+            if (meshName.includes('eye') || meshName.includes('pupil') || meshName.includes('iris')) {
+              console.log(`👁️ Found eye mesh: ${child.name}, fixing material`);
+              material.roughness = 0.1; // Make eyes more reflective
+              material.metalness = 0.0;
+              if (material.emissive) {
+                material.emissive.setHex(0x111111); // Slight emissive glow for eyes
+              }
+            }
+          }
+        }
+        
+        // Ensure geometry is properly computed
+        if (child.geometry) {
+          child.geometry.computeBoundingBox();
+          child.geometry.computeBoundingSphere();
+          if (!child.geometry.attributes.normal) {
+            child.geometry.computeVertexNormals();
+          }
+        }
+      }
+    });
+    
+    console.log('✅ Material fixes applied');
   };
 
   // Load animations for GLB models
@@ -284,7 +342,8 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
     action.play();
     currentActionRef.current = action;
     
-    console.log(`🎬 Playing animation: ${clipName}`);
+    const syncStatus = modelType === 'glb' && clipName === 'talking' ? ' (synchronized with audio)' : '';
+    console.log(`🎬 Playing animation: ${clipName}${syncStatus}`);
   };
 
   // Initialize Three.js scene
@@ -310,15 +369,22 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
     camera.position.set(0, 1.4, 3);
     cameraRef.current = camera;
     
-    // Renderer setup
+    // Enhanced Renderer setup for better model visibility
     const renderer = new THREE.WebGLRenderer({ 
       antialias: true,
-      alpha: true 
+      alpha: true,
+      powerPreference: "high-performance"
     });
     renderer.setSize(width, height);
     renderer.setPixelRatio(window.devicePixelRatio);
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    
+    // Enhanced rendering settings for better materials
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.2;
+    
     rendererRef.current = renderer;
     
     mountRef.current.appendChild(renderer.domElement);
@@ -335,13 +401,36 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
     controls.update();
     controlsRef.current = controls;
     
-    // Lighting
-    const light = new THREE.DirectionalLight(0xffffff, 1);
-    light.position.set(1, 1, 1).normalize();
-    scene.add(light);
+    // Enhanced Lighting Setup for Better Model Visibility
     
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+    // Main directional light (sunlight)
+    const mainLight = new THREE.DirectionalLight(0xffffff, 1.2);
+    mainLight.position.set(5, 10, 5);
+    mainLight.castShadow = true;
+    mainLight.shadow.mapSize.width = 2048;
+    mainLight.shadow.mapSize.height = 2048;
+    mainLight.shadow.camera.near = 0.5;
+    mainLight.shadow.camera.far = 50;
+    scene.add(mainLight);
+    
+    // Fill light from the opposite side
+    const fillLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    fillLight.position.set(-5, 5, -5);
+    scene.add(fillLight);
+    
+    // Front light for face/eye illumination
+    const frontLight = new THREE.DirectionalLight(0xffffff, 0.6);
+    frontLight.position.set(0, 2, 8);
+    scene.add(frontLight);
+    
+    // Ambient light for overall illumination
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
     scene.add(ambientLight);
+    
+    // Hemisphere light for natural color variation
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.4);
+    hemiLight.position.set(0, 20, 0);
+    scene.add(hemiLight);
     
     // Grid helper
     const gridHelper = new THREE.GridHelper(10, 10);
@@ -364,6 +453,9 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
           
           // Rotate model if needed
           VRMUtils.rotateVRM0(vrm);
+          
+          // Fix materials for proper rendering
+          fixModelMaterials(vrm.scene);
           
           scene.add(vrm.scene);
           vrmRef.current = vrm;
@@ -406,6 +498,9 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
           const center = box.getCenter(new THREE.Vector3());
           model.position.sub(center);
           model.position.y = 0;
+          
+          // Fix materials for proper rendering
+          fixModelMaterials(model);
           
           scene.add(model);
           modelRef.current = model;
@@ -484,14 +579,38 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
     };
   }, [modelUrl, width, height]);
   
+  // Register GLB animation callback with audio context for when audio actually starts
+  useEffect(() => {
+    if (onGLBAudioStart && modelType === 'glb') {
+      const triggerAnimation = () => {
+        console.log('🎬 GLB Animation triggered when audio actually starts playing');
+        console.log('🎭 Starting Talking.glb body animation synchronized with audio');
+        console.log('👄 Starting GLB lip sync animation synchronized with audio');
+        // Start both the body talking animation and lip sync animation
+        playAnimation('talking');
+        startSpeakingAnimation();
+      };
+      
+      onGLBAudioStart(triggerAnimation);
+      
+      return () => {
+        // Clean up callback
+        onGLBAudioStart(() => {});
+      };
+    }
+  }, [onGLBAudioStart, modelType]);
+  
   // Sync animations with audio state
   useEffect(() => {
     if (isAvatarTalking) {
-      playAnimation('talking');
-      // Start speaking animation for GLB models
-      if (modelType === 'glb') {
+      // For GLB models, both body and lip animations are triggered by onGLBAudioStart callback
+      // when audio actually starts playing, so we don't start them here
+      if (modelType === 'vrm') {
+        // For VRM models, start animations immediately since they don't have the audio sync
+        playAnimation('talking');
         startSpeakingAnimation();
       }
+      // For GLB models, we do nothing here - animations will start when audio actually plays
     } else if (isProcessingResponse) {
       playAnimation('thinking');
       // Stop speaking animation when thinking and seal lips
@@ -561,9 +680,9 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
       {/* Animation status indicator */}
       <div className="absolute bottom-4 left-4 bg-black bg-opacity-50 text-white px-3 py-1 rounded-full text-sm">
         {isAvatarTalking 
-          ? (modelType === 'glb' ? '🎤 Speaking (Male Voice + Visemes)' : '🎤 Speaking (Male Voice)') 
+          ? (modelType === 'glb' ? '🎤 Speaking (Audio Synchronized)' : '🎤 Speaking') 
           : isProcessingResponse 
-          ? (modelType === 'glb' ? '🤔 Thinking (Lips Sealed)' : '🤔 Thinking')
+          ? (modelType === 'glb' ? '🤔 Processing (Lips Sealed)' : '🤔 Processing')
           : (modelType === 'glb' ? '😊 Ready (Lips Sealed)' : '😊 Ready')
         }
       </div>

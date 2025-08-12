@@ -365,6 +365,13 @@ class StreamingAudioBufferManager {
       
       this.currentSource.start();
       this.isPlaying = true;
+      
+      // Notify that audio has started playing
+      if (this.onStartPlaying && !this.hasNotifiedStart) {
+        console.log('[StreamingAudioBufferManager] Audio started playing - notifying callback');
+        this.onStartPlaying();
+        this.hasNotifiedStart = true;
+      }
 
     } catch (error) {
       console.error('[StreamingAudioBufferManager] Error playing audio buffer:', error);
@@ -471,7 +478,8 @@ class StreamingAudioBufferManager {
 export const useDeepgramTTS = (
   setIsAvatarTalking?: (talking: boolean) => void,
   setIsAvatarSessionActive?: (active: boolean) => void,
-  onAudioChunkFinished?: (duration: number) => void
+  onAudioChunkFinished?: (duration: number) => void,
+  onAudioStartPlaying?: () => void
 ) => {
   const { canSpeakRef, isInterruptedRef, registerStopSpeaking } = useAudioSpeakingContext();
   const audioBufferManagerRef = useRef<StreamingAudioBufferManager | null>(null);
@@ -483,6 +491,7 @@ export const useDeepgramTTS = (
   // Add missing refs
   const isWelcomeMessageRef = useRef<boolean>(false);
   const onAudioChunkFinishedRef = useRef<((duration: number) => void) | null>(null);
+  const onAudioStartPlayingRef = useRef<(() => void) | null>(null);
 
   // Initialize audio buffer manager
   const initAudioBufferManager = useCallback(() => {
@@ -513,6 +522,16 @@ export const useDeepgramTTS = (
           if (audioBufferManagerRef.current) {
             console.log('[TTS] Audio finished, clearing buffer manager');
             audioBufferManagerRef.current.forceClear();
+          }
+        });
+      }
+      
+      // Set up callback for when audio starts playing (for GLB animation)
+      if (onAudioStartPlaying) {
+        audioBufferManagerRef.current.setOnStartPlaying(() => {
+          console.log('[TTS] Audio started playing - triggering GLB animation');
+          if (onAudioStartPlayingRef.current) {
+            onAudioStartPlayingRef.current();
           }
         });
       }
@@ -599,6 +618,12 @@ export const useDeepgramTTS = (
       if (setIsAvatarSessionActive) setIsAvatarSessionActive(false);
     }
   }, [initAudioBufferManager, setIsAvatarTalking, setIsAvatarSessionActive]);
+  
+  // Update refs when callbacks change
+  useEffect(() => {
+    onAudioChunkFinishedRef.current = onAudioChunkFinished ?? null;
+    onAudioStartPlayingRef.current = onAudioStartPlaying ?? null;
+  }, [onAudioChunkFinished, onAudioStartPlaying]);
 
   // Stop speaking function
   const stopSpeaking = useCallback((forceStop: boolean = false) => {

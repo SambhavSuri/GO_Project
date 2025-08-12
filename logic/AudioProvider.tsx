@@ -65,6 +65,9 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   // Callback for when audio chunks finish
   const onAudioChunkFinishedRef = useRef<((duration: number) => void) | null>(null);
 
+  // Callback for triggering GLB speaking animation when audio actually starts
+  const onGLBAudioStartRef = useRef<(() => void) | null>(null);
+
   // Get TTS functions - this will work now because we're not in a circular dependency
   const ttsFunctions = useDeepgramTTS(
     (talking: boolean) => {
@@ -80,6 +83,13 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       // Call the callback if it exists
       if (onAudioChunkFinishedRef.current) {
         onAudioChunkFinishedRef.current(duration);
+      }
+    },
+    () => {
+      console.log('[AudioProvider] Audio started playing - triggering GLB animation');
+      // Call the GLB animation callback if it exists
+      if (onGLBAudioStartRef.current) {
+        onGLBAudioStartRef.current();
       }
     }
   );
@@ -246,6 +256,11 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     // Audio chunk finished callback - stable function that doesn't change
     onAudioChunkFinished: (callback: (duration: number) => void) => {
       onAudioChunkFinishedRef.current = callback;
+    },
+    
+    // GLB animation callback for when audio actually starts playing
+    onGLBAudioStart: (callback: () => void) => {
+      onGLBAudioStartRef.current = callback;
     },
     
     // Override avatar methods for audio-only mode
