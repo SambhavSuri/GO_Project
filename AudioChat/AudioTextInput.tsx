@@ -9,7 +9,7 @@ export const AudioTextInput = ({ onMessageSent }: { onMessageSent?: () => void }
   const [isSending, setIsSending] = useState(false);
   const [validationWarning, setValidationWarning] = useState('');
   const { sendMessage } = useAudioTextChat();
-  const { isAvatarTalking, isProcessingResponse, stopSpeaking, isAvatarSessionActive } = useAudioContext();
+  const { isAvatarTalking, isProcessingResponse, stopSpeaking, isAvatarSessionActive, initializeAudioContext } = useAudioContext();
   const { requestAudioInterruption } = useAudioRagIntegration();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -57,6 +57,10 @@ export const AudioTextInput = ({ onMessageSent }: { onMessageSent?: () => void }
       setMessage("");
       if (onMessageSent) onMessageSent();
       try {
+        // Initialize audio context on user interaction before sending message
+        console.log('[AudioTextInput] Initializing audio context on user interaction...');
+        await initializeAudioContext();
+        
         await sendMessage(message);
       } catch (error) {
         console.error('[AudioTextInput] Error sending message:', error);
@@ -64,7 +68,7 @@ export const AudioTextInput = ({ onMessageSent }: { onMessageSent?: () => void }
         setIsSending(false);
       }
     },
-    [message, sendMessage, isSending, isAvatarTalking, isProcessingResponse, stopSpeaking, requestAudioInterruption, onMessageSent]
+    [message, sendMessage, isSending, isAvatarTalking, isProcessingResponse, stopSpeaking, requestAudioInterruption, onMessageSent, initializeAudioContext]
   );
 
   const handleKeyDown = useCallback(

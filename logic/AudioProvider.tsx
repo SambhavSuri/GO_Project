@@ -89,6 +89,24 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     stopSpeakingRef.current = ttsFunctions.stopSpeaking;
   }, [ttsFunctions.stopSpeaking]);
 
+  // Function to initialize audio context on user interaction
+  const initializeAudioContext = useCallback(async () => {
+    console.log('[AudioProvider] Initializing audio context after user interaction...');
+    try {
+      // Create a simple AudioContext to activate audio after user interaction
+      const tempAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      if (tempAudioContext.state === 'suspended') {
+        await tempAudioContext.resume();
+      }
+      await tempAudioContext.close();
+      console.log('[AudioProvider] Audio context initialization completed');
+      return true;
+    } catch (error) {
+      console.error('[AudioProvider] Failed to initialize audio context:', error);
+      return false;
+    }
+  }, []);
+
   // Function to append to current AI response (for streaming)
   const appendToCurrentAiResponse = useCallback((text: string) => {
     setCurrentAiResponse(text);
@@ -240,7 +258,10 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     sendAvatarMessage: async (message: string) => {
       console.log('[AudioProvider] sendAvatarMessage called - redirecting to TTS');
       await speakText(message);
-    }
+    },
+    
+    // Audio context initialization
+    initializeAudioContext
   }), [
     conversationHistory, 
     currentAiResponse, 
@@ -255,7 +276,8 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     appendToCurrentAiResponse,
     finalizeCurrentAiResponse,
     speakText,
-    ttsFunctions.stopSpeaking
+    ttsFunctions.stopSpeaking,
+    initializeAudioContext
     // Note: onAudioChunkFinished is not in dependencies as it's a stable function
   ]);
 

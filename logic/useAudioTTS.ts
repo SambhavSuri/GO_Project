@@ -40,7 +40,8 @@ class StreamingAudioBufferManager {
   private actualBitsPerSample: number = 16;
 
   constructor() {
-    this.initAudioContext();
+    // Don't initialize AudioContext in constructor - wait for user interaction
+    console.log('[StreamingAudioBufferManager] Constructor called - AudioContext will be initialized on first user interaction');
   }
 
   setOnComplete(callback: (duration: number) => void) {
@@ -52,10 +53,27 @@ class StreamingAudioBufferManager {
     this.onStartPlaying = callback;
   }
 
+  // Ensure AudioContext is ready - call this after user interaction
+  async ensureAudioContextReady(): Promise<boolean> {
+    if (this.audioContext && this.audioContext.state === 'running') {
+      console.log('[StreamingAudioBufferManager] AudioContext already ready');
+      return true;
+    }
+
+    console.log('[StreamingAudioBufferManager] Initializing AudioContext after user interaction...');
+    try {
+      await this.initAudioContext();
+      return this.audioContext?.state === 'running';
+    } catch (error) {
+      console.error('[StreamingAudioBufferManager] Failed to initialize AudioContext:', error);
+      return false;
+    }
+  }
+
   private async initAudioContext() {
     try {
       console.log('[StreamingAudioBufferManager] Initializing AudioContext...');
-      this.audioContext = new AudioContext({ 
+      this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ 
         sampleRate: SAMPLE_RATE,
         latencyHint: 'interactive'
       });
@@ -293,8 +311,10 @@ class StreamingAudioBufferManager {
       return;
     }
 
-    if (!this.audioContext || !this.compressorNode) {
-      console.error('[StreamingAudioBufferManager] AudioContext not ready');
+    // Ensure AudioContext is ready before playing
+    const isReady = await this.ensureAudioContextReady();
+    if (!isReady || !this.audioContext || !this.compressorNode) {
+      console.error('[StreamingAudioBufferManager] AudioContext not ready or failed to initialize');
       return;
     }
 
@@ -560,7 +580,15 @@ export const useDeepgramTTS = (
       // Add the complete audio to the buffer manager
       if (audioBufferManagerRef.current) {
         console.log('[DeepgramTTS] Adding audio to buffer manager');
-        audioBufferManagerRef.current.addCompleteAudio(audioData);
+        // Ensure AudioContext is ready before adding audio
+        const isReady = await audioBufferManagerRef.current.ensureAudioContextReady();
+        if (isReady) {
+          audioBufferManagerRef.current.addCompleteAudio(audioData);
+        } else {
+          console.error('[DeepgramTTS] Failed to initialize AudioContext - cannot play audio');
+          if (setIsAvatarTalking) setIsAvatarTalking(false);
+          if (setIsAvatarSessionActive) setIsAvatarSessionActive(false);
+        }
       } else {
         console.error('[DeepgramTTS] Audio buffer manager is null!');
       }
@@ -727,9 +755,13 @@ export const useStreamingDeepgramTTS = (
       abortControllerRef.current = abortController;
       await deepgramStreamingTTS(
         text,
-        (audioData: Uint8Array, isFirstChunk: boolean) => {
+        async (audioData: Uint8Array, isFirstChunk: boolean) => {
           if (audioBufferManagerRef.current) {
-            audioBufferManagerRef.current.addStreamingChunk(audioData, isFirstChunk);
+            // Ensure AudioContext is ready before adding streaming chunk
+            const isReady = await audioBufferManagerRef.current.ensureAudioContextReady();
+            if (isReady) {
+              audioBufferManagerRef.current.addStreamingChunk(audioData, isFirstChunk);
+            }
           }
         },
         () => {},

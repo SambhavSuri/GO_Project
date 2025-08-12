@@ -15,6 +15,7 @@ export function AudioChatWithAvatar() {
   const [isWelcomeSpeaking, setIsWelcomeSpeaking] = useState(false);
   const [isInitializing, setIsInitializing] = useState(false);
   const [selectedModel, setSelectedModel] = useState('/static/assets/6891a06aece5d61d2d726697.glb');
+  const [showStartButton, setShowStartButton] = useState(true);
   const welcomeMessageRef = useRef<string | null>(null);
   const hasSentWelcomeRef = useRef(false);
   
@@ -33,6 +34,7 @@ export function AudioChatWithAvatar() {
   const speakText = context?.speakText;
   const setIsAvatarSessionActive = context?.setIsAvatarSessionActive;
   const onAudioChunkFinished = context?.onAudioChunkFinished;
+  const initializeAudioContext = context?.initializeAudioContext;
   
   // Available VRM models
   const availableModels = [
@@ -61,10 +63,17 @@ export function AudioChatWithAvatar() {
     }
   }, [isAvatarTalking, context]);
 
-  // Auto-start the session when component mounts (like video chat)
-  useEffect(() => {
-    const handleStart = async () => {
-      console.log('[AudioChatWithAvatar] Auto-starting session');
+  // Handle start call button click
+  const handleStartCall = async () => {
+    console.log('[AudioChatWithAvatar] Start Call button clicked - initializing with user interaction');
+    
+    try {
+      // Initialize audio context on user interaction
+      if (initializeAudioContext) {
+        console.log('[AudioChatWithAvatar] Initializing audio context...');
+        await initializeAudioContext();
+      }
+      
       // Reset welcome message refs for clean state
       welcomeMessageRef.current = null;
       hasSentWelcomeRef.current = false;
@@ -73,17 +82,23 @@ export function AudioChatWithAvatar() {
       
       // Reset state for new session
       setHasWelcomed(false);
+      setShowStartButton(false);
       
-      // Disable all buttons immediately when session starts
+      // Start the session
       setIsInitializing(true);
       setIsWelcomeSpeaking(true);
       setIsStarted(true);
-    };
-
-    // Auto-start after a short delay
-    const timer = setTimeout(handleStart, 500);
-    return () => clearTimeout(timer);
-  }, []);
+      
+      console.log('[AudioChatWithAvatar] Session started successfully');
+    } catch (error) {
+      console.error('[AudioChatWithAvatar] Error starting session:', error);
+      // Reset states on error
+      setShowStartButton(true);
+      setIsInitializing(false);
+      setIsWelcomeSpeaking(false);
+      setIsStarted(false);
+    }
+  };
 
   // Set up audio chunk finished callback once when component mounts
   useEffect(() => {
@@ -233,7 +248,23 @@ export function AudioChatWithAvatar() {
       {/* Left side - Avatar and Controls */}
       <div className="flex flex-col rounded-xl bg-white border border-gray-200 overflow-hidden flex-1">
         <div className="relative w-full aspect-video overflow-hidden flex flex-col items-center justify-center bg-gray-50">
-          {!isStarted ? (
+          {showStartButton ? (
+            <div className="w-full h-full flex flex-col items-center justify-center p-8 text-gray-600">
+              <div className="flex flex-col items-center space-y-4">
+                <h2 className="text-2xl font-bold text-gray-800">AI Avatar Assistant</h2>
+                <p className="text-gray-600 text-center max-w-md">
+                  Click the button below to start your audio session with the AI assistant
+                </p>
+                <button
+                  onClick={handleStartCall}
+                  className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors duration-200 flex items-center space-x-2"
+                >
+                  <span>📞</span>
+                  <span>Start Call</span>
+                </button>
+              </div>
+            </div>
+          ) : !isStarted ? (
             <div className="w-full h-full flex flex-col items-center justify-center p-8 text-gray-600">
               <div className="flex items-center space-x-2">
                 <Loader2 className="h-8 w-8 animate-spin text-blue-500" />

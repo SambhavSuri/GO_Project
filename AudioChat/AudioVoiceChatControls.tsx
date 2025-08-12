@@ -6,7 +6,7 @@ import { MicIcon, MicOffIcon } from "../components/Icons";
 
 // Audio-specific voice chat controls - matching text bot design
 export const AudioVoiceChatControls = () => {
-  const { isAvatarSessionActive, stopSpeaking, isMuted, isVoiceChatActive, isAvatarTalking } = useAudioContext();
+  const { isAvatarSessionActive, stopSpeaking, isMuted, isVoiceChatActive, isAvatarTalking, initializeAudioContext } = useAudioContext();
   const { muteInputAudio, unmuteInputAudio, startVoiceChat, isRecording, hasProcessedFinalTranscript } = useAudioVoiceChat();
   const { requestAudioInterruption } = useAudioRagIntegration();
   const [isStarting, setIsStarting] = useState(false);
@@ -51,6 +51,10 @@ export const AudioVoiceChatControls = () => {
     if (!isVoiceChatActive && !isStarting) {
       setIsStarting(true);
       try {
+        // Initialize audio context on first user interaction
+        console.log('[AudioVoiceChatControls] Initializing audio context on user interaction...');
+        await initializeAudioContext();
+        
         await startVoiceChat();
         // Voice chat starts in muted state - user must manually unmute
       } catch (error) {
