@@ -34,10 +34,151 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
   // Get audio context for syncing with speech
   const { isAvatarTalking, isProcessingResponse } = useAudioContext();
   
+  // Speaking animation state for GLB models
+  const speakingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const mouthStateRef = useRef<'open' | 'closed'>('closed');
+  const lastMouthChangeTimeRef = useRef<number>(0);
+  const visemeMappingRef = useRef<Record<string, string>>({});
+  
   // Animation clips refs
   const idleClipRef = useRef<THREE.AnimationClip | null>(null);
   const talkingClipRef = useRef<THREE.AnimationClip | null>(null);
   const thinkingClipRef = useRef<THREE.AnimationClip | null>(null);
+
+  // Initialize viseme mapping for GLB speaking animation
+  const initializeVisemeMapping = () => {
+    visemeMappingRef.current = {
+      A: "viseme_aa",    // Open mouth sound
+      B: "viseme_PP",    // Bilabial sounds (B, P, M)
+      C: "viseme_I",     // Close front vowel
+      D: "viseme_DD",    // Dental/alveolar sounds (D, T, N, L)
+      E: "viseme_E",     // Mid front vowel
+      F: "viseme_U",     // Close back vowel (OO sound)
+      G: "viseme_FF",    // Labiodental sounds (F, V)
+      H: "viseme_TH",    // Dental fricative (TH)
+      X: "viseme_sil",   // Silence
+      SIL: "viseme_sil", // Silence
+      CH: "viseme_CH",   // Palato-alveolar sounds (CH, SH)
+      SS: "viseme_SS",   // Sibilant sounds (S, Z)
+      NN: "viseme_nn",   // Nasal sounds
+      RR: "viseme_RR",   // R sounds
+      KK: "viseme_kk",   // Velar sounds (K, G)
+      O: "viseme_O"      // Open back vowel
+    };
+  };
+
+  // Lerp morph target to a specific value
+  const lerpMorphTarget = (targetName: string, value: number, speed: number = 0.1) => {
+    if (!modelRef.current || modelType !== 'glb') {
+      return;
+    }
+    
+    modelRef.current.traverse((child) => {
+      if ((child as any).isSkinnedMesh && (child as any).morphTargetDictionary) {
+        const skinnedMesh = child as THREE.SkinnedMesh;
+        const index = skinnedMesh.morphTargetDictionary[targetName];
+        if (index === undefined || !skinnedMesh.morphTargetInfluences || skinnedMesh.morphTargetInfluences[index] === undefined) {
+          return;
+        }
+        
+        // Smoothly interpolate to the target value
+        skinnedMesh.morphTargetInfluences[index] = THREE.MathUtils.lerp(
+          skinnedMesh.morphTargetInfluences[index],
+          value,
+          speed
+        );
+      }
+    });
+  };
+
+  // Speaking animation for GLB models
+  const updateSpeakingAnimation = () => {
+    if (modelType !== 'glb' || !modelRef.current) return;
+    
+    const currentTime = Date.now();
+    const mouthOpenTime = 150 + Math.random() * 250; // 150-400ms - longer for more visible movement
+    const mouthCloseTime = 80 + Math.random() * 120; // 80-200ms - longer pause for better contrast
+    
+    // Handle realistic mouth movements using visemes for speaking animation
+    if (mouthStateRef.current === 'closed' && currentTime - lastMouthChangeTimeRef.current >= mouthCloseTime) {
+      // Reset all visemes first
+      ['viseme_sil', 'viseme_aa', 'viseme_E', 'viseme_I', 'viseme_O', 'viseme_U', 'viseme_PP', 'viseme_DD', 'viseme_FF', 'viseme_TH', 'viseme_CH', 'viseme_SS', 'viseme_nn', 'viseme_RR', 'viseme_kk'].forEach(viseme => {
+        lerpMorphTarget(viseme, 0.0, 0.1);
+      });
+      
+      // REALISTIC LIP MOVEMENT with proper mouth gap - focus on lips, not teeth
+      const lipMovementVisemes = [
+        { viseme: 'viseme_aa', strength: 1.2, desc: 'Wide lip separation' },
+        { viseme: 'viseme_E', strength: 1.0, desc: 'Mid lip position' },
+        { viseme: 'viseme_O', strength: 1.1, desc: 'Round lip pucker' },
+        { viseme: 'viseme_I', strength: 0.9, desc: 'Narrow lip spread' },
+        { viseme: 'viseme_U', strength: 1.0, desc: 'Lip forward projection' },
+        { viseme: 'viseme_PP', strength: 1.1, desc: 'Lip closure/release' },
+      ];
+      
+      const randomLipMovement = lipMovementVisemes[Math.floor(Math.random() * lipMovementVisemes.length)];
+      
+      // Apply the chosen lip movement with enhanced strength for visibility
+      lerpMorphTarget(randomLipMovement.viseme, randomLipMovement.strength, 0.3);
+      
+      //console.log(`👄 LIP MOVEMENT: ${randomLipMovement.viseme} (${randomLipMovement.desc}) at ${randomLipMovement.strength} strength`);
+      
+      mouthStateRef.current = 'open';
+      lastMouthChangeTimeRef.current = currentTime;
+    } else if (mouthStateRef.current === 'open' && currentTime - lastMouthChangeTimeRef.current >= mouthOpenTime) {
+      // Close mouth - use silence viseme
+      // Reset all speaking visemes for natural lip closure
+      ['viseme_aa', 'viseme_E', 'viseme_I', 'viseme_O', 'viseme_U', 'viseme_PP', 'viseme_DD', 'viseme_FF', 'viseme_TH', 'viseme_CH', 'viseme_SS', 'viseme_nn', 'viseme_RR', 'viseme_kk'].forEach(viseme => {
+        lerpMorphTarget(viseme, 0.0, 0.2);
+      });
+      
+      // Apply natural lip closure with slight gap
+      lerpMorphTarget('viseme_sil', 0.4, 0.3);  // More neutral closure with better contrast
+      
+      //console.log(`🤐 LIPS CLOSED: Natural lip position with slight gap`);
+      
+      mouthStateRef.current = 'closed';
+      lastMouthChangeTimeRef.current = currentTime;
+    }
+  };
+
+  // Start speaking animation for GLB models
+  const startSpeakingAnimation = () => {
+    if (modelType !== 'glb' || speakingIntervalRef.current) return;
+    
+    console.log('🎤 Starting GLB speaking animation');
+    initializeVisemeMapping();
+    
+    // Reset mouth state
+    mouthStateRef.current = 'closed';
+    lastMouthChangeTimeRef.current = Date.now();
+    
+    // Start speaking animation loop
+    speakingIntervalRef.current = setInterval(updateSpeakingAnimation, 50); // 20 FPS
+  };
+
+  // Stop speaking animation for GLB models
+  const stopSpeakingAnimation = () => {
+    if (speakingIntervalRef.current) {
+      clearInterval(speakingIntervalRef.current);
+      speakingIntervalRef.current = null;
+      console.log('🤐 Stopped GLB speaking animation');
+    }
+    
+    // Completely seal lips for idle state
+    sealLipsForIdle();
+  };
+
+  // Seal lips completely for idle animation
+  const sealLipsForIdle = () => {
+    if (modelType === 'glb' && modelRef.current) {
+      // Reset ALL visemes to 0 for completely sealed lips
+      ['viseme_aa', 'viseme_E', 'viseme_I', 'viseme_O', 'viseme_U', 'viseme_PP', 'viseme_sil', 'viseme_DD', 'viseme_FF', 'viseme_TH', 'viseme_CH', 'viseme_SS', 'viseme_nn', 'viseme_RR', 'viseme_kk'].forEach(viseme => {
+        lerpMorphTarget(viseme, 0.0, 0.4);
+      });
+      console.log('🔒 Lips completely sealed for idle state - all visemes reset to 0');
+    }
+  };
 
   // Load animations for GLB models
   const loadAnimationsForGLB = async () => {
@@ -289,6 +430,9 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
           // Start with idle animation
           playAnimation('idle');
           
+          // Ensure lips are sealed on initial load
+          setTimeout(() => sealLipsForIdle(), 500);
+          
           setIsLoading(false);
           console.log('✅ GLB model loaded successfully');
         },
@@ -327,6 +471,12 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
     
     // Cleanup
     return () => {
+      // Stop speaking animation
+      if (speakingIntervalRef.current) {
+        clearInterval(speakingIntervalRef.current);
+        speakingIntervalRef.current = null;
+      }
+      
       if (mountRef.current && renderer.domElement) {
         mountRef.current.removeChild(renderer.domElement);
       }
@@ -338,12 +488,28 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
   useEffect(() => {
     if (isAvatarTalking) {
       playAnimation('talking');
+      // Start speaking animation for GLB models
+      if (modelType === 'glb') {
+        startSpeakingAnimation();
+      }
     } else if (isProcessingResponse) {
       playAnimation('thinking');
+      // Stop speaking animation when thinking and seal lips
+      if (modelType === 'glb') {
+        stopSpeakingAnimation();
+        // Ensure lips are sealed during thinking
+        setTimeout(() => sealLipsForIdle(), 200);
+      }
     } else {
       playAnimation('idle');
+      // Stop speaking animation when idle and seal lips completely
+      if (modelType === 'glb') {
+        stopSpeakingAnimation();
+        // Ensure lips are completely sealed during idle
+        setTimeout(() => sealLipsForIdle(), 200);
+      }
     }
-  }, [isAvatarTalking, isProcessingResponse]);
+  }, [isAvatarTalking, isProcessingResponse, modelType]);
   
   // Handle window resize
   useEffect(() => {
@@ -394,7 +560,12 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
       
       {/* Animation status indicator */}
       <div className="absolute bottom-4 left-4 bg-black bg-opacity-50 text-white px-3 py-1 rounded-full text-sm">
-        {isAvatarTalking ? 'Speaking' : isProcessingResponse ? 'Thinking' : 'Ready'}
+        {isAvatarTalking 
+          ? (modelType === 'glb' ? '🎤 Speaking (Enhanced Visemes)' : '🎤 Speaking') 
+          : isProcessingResponse 
+          ? (modelType === 'glb' ? '🤔 Thinking (Lips Sealed)' : '🤔 Thinking')
+          : (modelType === 'glb' ? '😊 Ready (Lips Sealed)' : '😊 Ready')
+        }
       </div>
     </div>
   );

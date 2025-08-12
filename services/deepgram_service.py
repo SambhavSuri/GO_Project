@@ -157,7 +157,7 @@ class DeepgramService:
             smart_format=True,
             punctuate=True,
             diarize=False,
-            model="nova-2",  # Use the latest model
+            model="aura-2-apollo-en",  # Use the latest model
             language="en-US",
             filler_words=False,
             profanity_filter=False

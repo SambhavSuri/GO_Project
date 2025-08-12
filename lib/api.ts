@@ -8,7 +8,7 @@ export async function deepgramTTS(text: string): Promise<Uint8Array | null> {
   }
 
   try {
-    const response = await fetch('https://api.deepgram.com/v1/speak?model=aura-2-thalia-en&encoding=linear16&container=wav&voice=thalia', {
+    const response = await fetch('https://api.deepgram.com/v1/speak?model=aura-2-aries-en&encoding=linear16&container=wav&voice=aries', {
       method: 'POST',
       headers: {
         'Authorization': `Token ${apiKey}`,
