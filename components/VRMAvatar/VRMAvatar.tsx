@@ -180,6 +180,14 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
     }
   };
 
+  // Store eye objects and their original transforms to preserve them
+  const eyeObjectsRef = useRef<Map<string, { 
+    object: THREE.Object3D, 
+    originalPosition: THREE.Vector3,
+    originalRotation: THREE.Euler,
+    originalScale: THREE.Vector3
+  }>>(new Map());
+
   // Function to fix material issues for proper rendering
   const fixModelMaterials = (model: THREE.Object3D) => {
     console.log('🎨 Fixing materials for proper rendering...');
@@ -189,6 +197,30 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
         // Ensure mesh casts and receives shadows
         child.castShadow = true;
         child.receiveShadow = true;
+        
+        // Check if this is an eye-related mesh and store its original transform
+        const meshName = child.name.toLowerCase();
+        const isEyeMesh = meshName.includes('eye') || meshName.includes('pupil') || meshName.includes('iris') || 
+                         meshName.includes('cornea') || meshName.includes('eyeball');
+        
+        if (isEyeMesh) {
+          console.log(`👁️ Found eye mesh: ${child.name}, preserving original transform`);
+          eyeObjectsRef.current.set(child.uuid, {
+            object: child,
+            originalPosition: child.position.clone(),
+            originalRotation: child.rotation.clone(),
+            originalScale: child.scale.clone()
+          });
+          
+          // Make eye objects immune to animation transforms
+          child.matrixAutoUpdate = false;
+          child.updateMatrix();
+          
+          // Also preserve the parent hierarchy to prevent inherited transforms
+          if (child.parent) {
+            console.log(`👁️ Eye object ${child.name} has parent: ${child.parent.name}`);
+          }
+        }
         
         // Fix material properties
         if (child.material) {
@@ -212,14 +244,22 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
             }
             
             // Special handling for eye materials (common naming patterns)
-            const meshName = child.name.toLowerCase();
-            if (meshName.includes('eye') || meshName.includes('pupil') || meshName.includes('iris')) {
-              console.log(`👁️ Found eye mesh: ${child.name}, fixing material`);
+            if (isEyeMesh) {
+              console.log(`👁️ Applying special eye material properties to: ${child.name}`);
               material.roughness = 0.1; // Make eyes more reflective
               material.metalness = 0.0;
+              material.transparent = false; // Ensure eyes are not transparent
+              material.opacity = 1.0;
+              material.alphaTest = 0.0;
+              material.depthWrite = true;
+              material.depthTest = true;
+              
               if (material.emissive) {
-                material.emissive.setHex(0x111111); // Slight emissive glow for eyes
+                material.emissive.setHex(0x222222); // Slight emissive glow for eyes
               }
+              
+              // Force material update
+              material.needsUpdate = true;
             }
           }
         }
@@ -235,7 +275,7 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
       }
     });
     
-    console.log('✅ Material fixes applied');
+    console.log('✅ Material fixes applied, eye objects preserved');
   };
 
   // Load animations for GLB models
@@ -277,18 +317,46 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
   const retargetAnimation = (clip: THREE.AnimationClip, model: THREE.Object3D): THREE.AnimationClip => {
     const tracks: THREE.KeyframeTrack[] = [];
     
+    // Eye-related bone names to exclude from animation retargeting
+    const eyeExcludedBones = [
+      'eye', 'eyes', 'eyeball', 'eyeballs', 'pupil', 'iris', 'cornea',
+      'lefteye', 'righteye', 'eyel', 'eyer', 'eye_l', 'eye_r',
+      'left_eye', 'right_eye', 'eyebone', 'eyeroot'
+    ];
+    
     clip.tracks.forEach((track) => {
       // Get the bone name from the track
       const parts = track.name.split('.');
-      const boneName = parts[0];
+      const boneName = parts[0].toLowerCase();
       const property = parts.slice(1).join('.');
+      
+      // Skip eye-related bones to prevent eye disappearing
+      const isEyeBone = eyeExcludedBones.some(excludedBone => 
+        boneName.includes(excludedBone) || excludedBone.includes(boneName)
+      );
+      
+      if (isEyeBone) {
+        console.log(`🚫 Excluding eye bone from animation: ${parts[0]}`);
+        return; // Skip this track
+      }
       
       // Try to find corresponding bone in the model
       let targetBone: THREE.Object3D | undefined;
       model.traverse((child) => {
-        if (child.name === boneName || 
-            child.name.toLowerCase().includes(boneName.toLowerCase()) ||
-            boneName.toLowerCase().includes(child.name.toLowerCase())) {
+        const childNameLower = child.name.toLowerCase();
+        
+        // Skip if this is an eye-related object
+        const isEyeObject = eyeExcludedBones.some(excludedBone => 
+          childNameLower.includes(excludedBone)
+        );
+        
+        if (isEyeObject) {
+          return; // Skip eye objects
+        }
+        
+        if (child.name === parts[0] || 
+            childNameLower.includes(boneName) ||
+            boneName.includes(childNameLower)) {
           targetBone = child;
         }
       });
@@ -298,9 +366,11 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
         const newTrack = track.clone();
         newTrack.name = `${targetBone.name}.${property}`;
         tracks.push(newTrack);
+        console.log(`✅ Retargeted animation track: ${parts[0]} -> ${targetBone.name}`);
       }
     });
     
+    console.log(`🎬 Retargeted animation with ${tracks.length} tracks (eye bones excluded)`);
     return new THREE.AnimationClip(clip.name, clip.duration, tracks, clip.blendMode);
   };
 
@@ -556,6 +626,30 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
         vrmRef.current.update(deltaTime);
       }
       
+      // Restore eye transforms after animation updates to prevent disappearing
+      eyeObjectsRef.current.forEach((eyeData) => {
+        const { object, originalPosition, originalRotation, originalScale } = eyeData;
+        if (object && object.parent) {
+          // Restore original transforms
+          object.position.copy(originalPosition);
+          object.rotation.copy(originalRotation);
+          object.scale.copy(originalScale);
+          
+          // Ensure visibility properties are maintained
+          object.visible = true;
+          object.updateMatrix();
+          object.updateMatrixWorld(true);
+          
+          // Force material update if needed
+          if (object instanceof THREE.Mesh && object.material) {
+            const material = Array.isArray(object.material) ? object.material[0] : object.material;
+            if (material instanceof THREE.Material) {
+              material.needsUpdate = true;
+            }
+          }
+        }
+      });
+      
       if (controlsRef.current) {
         controlsRef.current.update();
       }
@@ -680,10 +774,10 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
       {/* Animation status indicator */}
       <div className="absolute bottom-4 left-4 bg-black bg-opacity-50 text-white px-3 py-1 rounded-full text-sm">
         {isAvatarTalking 
-          ? (modelType === 'glb' ? '🎤 Speaking (Audio Synchronized)' : '🎤 Speaking') 
+          ? (modelType === 'glb' ? 'Speaking (Audio Synchronized)' : 'Speaking') 
           : isProcessingResponse 
-          ? (modelType === 'glb' ? '🤔 Processing (Lips Sealed)' : '🤔 Processing')
-          : (modelType === 'glb' ? '😊 Ready (Lips Sealed)' : '😊 Ready')
+          ? (modelType === 'glb' ? 'Processing (Lips Sealed)' : 'Processing')
+          : (modelType === 'glb' ? 'Ready (Lips Sealed)' : 'Ready')
         }
       </div>
     </div>

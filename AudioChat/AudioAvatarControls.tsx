@@ -60,9 +60,9 @@ export const AudioAvatarControls = () => {
       </div>
       
       {/* Web Search Toggle */}
-      <div className="flex justify-center">
+      {/* <div className="flex justify-center">
         <WebSearchToggle disabled={isSwitchDisabled} />
-      </div>
+      </div> */}
       
       {activeTab === 'text' ? (
         <AudioTextInput onMessageSent={handleMessageSent} />
