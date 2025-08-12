@@ -1,0 +1,308 @@
+import React, { useState, useEffect, useRef } from "react";
+import { useAudioVoiceChat } from "../logic/audio";
+import { useAudioContext } from "../logic/AudioProvider";
+import { Loader2 } from "lucide-react";
+import { AudioAvatarControls } from "./AudioAvatarControls";
+import { AudioMessageHistory } from "./AudioMessageHistory";
+import { VRMAvatar } from "../components/VRMAvatar/VRMAvatar";
+
+// Welcome message from the personal tutor
+const WELCOME_MESSAGE = `Hello! I'm your personal Advocate and Assistant, and I'm excited to help you today. `;
+
+export function AudioChatWithAvatar() {
+  const [isStarted, setIsStarted] = useState(false);
+  const [hasWelcomed, setHasWelcomed] = useState(false);
+  const [isWelcomeSpeaking, setIsWelcomeSpeaking] = useState(false);
+  const [isInitializing, setIsInitializing] = useState(false);
+  const [selectedModel, setSelectedModel] = useState('/static/assets/6891a06aece5d61d2d726697.glb');
+  const welcomeMessageRef = useRef<string | null>(null);
+  const hasSentWelcomeRef = useRef(false);
+  
+  // Use refs to track current state for the callback
+  const isWelcomeSpeakingRef = useRef(false);
+  const hasWelcomedRef = useRef(false);
+  const isAvatarTalkingRef = useRef(false);
+  
+  // Get context values with proper initialization check
+  const context = useAudioContext();
+  const { isRecording, showStartTalkingPrompt } = useAudioVoiceChat();
+  
+  // Only destructure context values after ensuring context is available
+  const isProcessingResponse = context?.isProcessingResponse ?? false;
+  const isAvatarTalking = context?.isAvatarTalking ?? false;
+  const speakText = context?.speakText;
+  const setIsAvatarSessionActive = context?.setIsAvatarSessionActive;
+  const onAudioChunkFinished = context?.onAudioChunkFinished;
+  
+  // Available VRM models
+  const availableModels = [
+    { name: 'Avatar Main (GLB)', path: '/static/assets/6891a06aece5d61d2d726697.glb' },
+    { name: 'Avatar C (VRM)', path: '/static/models/AvatarSample_C.vrm' },
+    { name: 'Avatar A (VRM)', path: '/static/assets/AvatarSample_A.vrm' },
+    { name: 'Viverse Avatar (VRM)', path: '/static/assets/viverse_avatar_model_161376.vrm' },
+  ];
+  
+  // Update refs when state changes - only if context values are available
+  useEffect(() => {
+    if (context) {
+      isWelcomeSpeakingRef.current = isWelcomeSpeaking;
+    }
+  }, [isWelcomeSpeaking, context]);
+  
+  useEffect(() => {
+    if (context) {
+      hasWelcomedRef.current = hasWelcomed;
+    }
+  }, [hasWelcomed, context]);
+  
+  useEffect(() => {
+    if (context) {
+      isAvatarTalkingRef.current = isAvatarTalking;
+    }
+  }, [isAvatarTalking, context]);
+
+  // Auto-start the session when component mounts (like video chat)
+  useEffect(() => {
+    const handleStart = async () => {
+      console.log('[AudioChatWithAvatar] Auto-starting session');
+      // Reset welcome message refs for clean state
+      welcomeMessageRef.current = null;
+      hasSentWelcomeRef.current = false;
+      isWelcomeSpeakingRef.current = false;
+      hasWelcomedRef.current = false;
+      
+      // Reset state for new session
+      setHasWelcomed(false);
+      
+      // Disable all buttons immediately when session starts
+      setIsInitializing(true);
+      setIsWelcomeSpeaking(true);
+      setIsStarted(true);
+    };
+
+    // Auto-start after a short delay
+    const timer = setTimeout(handleStart, 500);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Set up audio chunk finished callback once when component mounts
+  useEffect(() => {
+    if (!onAudioChunkFinished) return;
+    
+    const handleAudioChunkFinished = (duration: number) => {
+      console.log('[AudioChatWithAvatar] Audio chunk finished, duration:', duration);
+      
+      // Enable buttons when welcome message audio chunks finish
+      if (isWelcomeSpeakingRef.current && hasWelcomedRef.current) {
+        console.log('[AudioChatWithAvatar] Welcome message complete - enabling all buttons');
+        setIsWelcomeSpeaking(false);
+        setIsInitializing(false);
+        welcomeMessageRef.current = null;
+        // Reset avatar session active state to hide stop button
+        if (setIsAvatarSessionActive) {
+          setIsAvatarSessionActive(false);
+        }
+      }
+    };
+
+    console.log('[AudioChatWithAvatar] Setting up audio chunk finished callback');
+    
+    // Set up the callback in the audio context
+    onAudioChunkFinished(handleAudioChunkFinished);
+
+    return () => {
+      // Clean up callback when component unmounts
+      onAudioChunkFinished(() => {});
+    };
+  }, [onAudioChunkFinished, setIsAvatarSessionActive]);
+
+  // Enable buttons when avatar stops talking (main mechanism)
+  useEffect(() => {
+    if (!context) return;
+    
+    if (!isAvatarTalkingRef.current && isWelcomeSpeakingRef.current && hasWelcomedRef.current) {
+      console.log('[AudioChatWithAvatar] Avatar stopped talking after welcome message - enabling all buttons');
+      setIsWelcomeSpeaking(false);
+      setIsInitializing(false);
+      welcomeMessageRef.current = null;
+      if (setIsAvatarSessionActive) {
+        setIsAvatarSessionActive(false);
+      }
+    } else if (!isAvatarTalkingRef.current && !isWelcomeSpeakingRef.current && !isInitializing) {
+      console.log('[AudioChatWithAvatar] Avatar stopped talking, regular audio session complete');
+      // Regular audio finished, ensure session is inactive
+      if (setIsAvatarSessionActive) {
+        setIsAvatarSessionActive(false);
+      }
+    }
+  }, [isAvatarTalking, isWelcomeSpeaking, hasWelcomed, isInitializing, setIsAvatarSessionActive, context]);
+
+  // Send welcome message when session starts - use ref to prevent multiple calls
+  useEffect(() => {
+    if (!context || !speakText) return;
+    
+    if (isStarted && !hasWelcomed && speakText && !welcomeMessageRef.current && isInitializing && !hasSentWelcomeRef.current && !isAvatarTalkingRef.current) {
+      const sendWelcomeMessage = async () => {
+        try {
+          console.log("[AudioChatWithAvatar] Sending welcome message");
+          
+          // Set the welcome message reference before speaking
+          welcomeMessageRef.current = WELCOME_MESSAGE;
+          hasSentWelcomeRef.current = true;
+          
+          // Speak the welcome message with isWelcome flag to prevent replay
+          await speakText(WELCOME_MESSAGE, true);
+          
+          // Mark as welcomed (but keep speaking state until audio finishes)
+          setHasWelcomed(true);
+          console.log("[AudioChatWithAvatar] Welcome message sent, waiting for audio to finish");
+        } catch (error) {
+          console.error("[AudioChatWithAvatar] Error sending welcome message:", error);
+          setIsWelcomeSpeaking(false);
+          setIsInitializing(false);
+          welcomeMessageRef.current = null;
+          hasSentWelcomeRef.current = false;
+        }
+      };
+
+      // Wait a moment for the session to be ready
+      setTimeout(sendWelcomeMessage, 1000);
+    }
+  }, [isStarted, hasWelcomed, isInitializing]);
+
+  // Cleanup effect to stop audio when component unmounts or page closes
+  useEffect(() => {
+    let isPageClosing = false;
+    
+    const handleBeforeUnload = () => {
+      console.log('[AudioChatWithAvatar] Page closing - stopping all audio');
+      isPageClosing = true;
+      // Stop any ongoing speech synthesis
+      if ('speechSynthesis' in window) {
+        speechSynthesis.cancel();
+      }
+      // Force stop any Deepgram audio
+      if (context?.stopSpeaking) {
+        context.stopSpeaking(true);
+      }
+    };
+    
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        console.log('[AudioChatWithAvatar] Page hidden - stopping all audio');
+        isPageClosing = true;
+        // Stop any ongoing speech synthesis
+        if ('speechSynthesis' in window) {
+          speechSynthesis.cancel();
+        }
+        // Force stop any Deepgram audio
+        if (context?.stopSpeaking) {
+          context.stopSpeaking(true);
+        }
+      }
+    };
+    
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    return () => {
+      console.log('[AudioChatWithAvatar] Component unmounting - stopping all audio');
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      
+      // Only force stop if page is actually closing
+      if (isPageClosing) {
+        console.log('[AudioChatWithAvatar] Page is closing - force stopping audio');
+        // Stop any ongoing speech synthesis
+        if ('speechSynthesis' in window) {
+          speechSynthesis.cancel();
+        }
+        // Force stop any Deepgram audio
+        if (context?.stopSpeaking) {
+          context.stopSpeaking(true);
+        }
+      }
+    };
+  }, [context]);
+
+  // Determine if buttons should be disabled
+  const shouldDisableButtons = isInitializing || isWelcomeSpeaking || isAvatarTalking;
+
+  return (
+    <div className="w-full flex flex-row gap-4 h-full">
+      {/* Left side - Avatar and Controls */}
+      <div className="flex flex-col rounded-xl bg-white border border-gray-200 overflow-hidden flex-1">
+        <div className="relative w-full aspect-video overflow-hidden flex flex-col items-center justify-center bg-gray-50">
+          {!isStarted ? (
+            <div className="w-full h-full flex flex-col items-center justify-center p-8 text-gray-600">
+              <div className="flex items-center space-x-2">
+                <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+                <span className="text-lg">Starting AI Avatar Assistant...</span>
+              </div>
+            </div>
+          ) : (
+            <div className="w-full h-full">
+              {/* VRM Avatar Display */}
+              <VRMAvatar 
+                modelUrl={selectedModel}
+                width={800}
+                height={600}
+              />
+              
+              {/* Avatar Model Selector */}
+              <div className="absolute top-4 right-4 bg-white bg-opacity-90 rounded-lg p-2">
+                <select 
+                  value={selectedModel}
+                  onChange={(e) => setSelectedModel(e.target.value)}
+                  className="text-sm px-2 py-1 border border-gray-300 rounded"
+                  disabled={shouldDisableButtons}
+                >
+                  {availableModels.map((model) => (
+                    <option key={model.path} value={model.path}>
+                      {model.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              
+              {/* Status Overlay */}
+              <div className="absolute bottom-4 left-4 bg-black bg-opacity-50 text-white px-4 py-2 rounded-lg">
+                <h3 className="text-sm font-semibold mb-1">
+                  {isRecording ? "Listening..." : 
+                   isWelcomeSpeaking ? "Initializing..." : 
+                   isAvatarTalking ? "AI Speaking..." : 
+                   isProcessingResponse ? "Processing..." :
+                   "Ready"}
+                </h3>
+                {showStartTalkingPrompt && !shouldDisableButtons && (
+                  <p className="text-green-400 text-xs">Start talking...</p>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+        
+        <div className="flex flex-col gap-3 items-center justify-center p-4 border-t border-gray-200 w-full bg-white">
+          {isStarted ? (
+            <div className="w-full">
+              <AudioAvatarControls />
+            </div>
+          ) : null}
+        </div>
+      </div>
+      
+      {/* Right side - Chat History */}
+      <div className="w-80 flex flex-col h-full">
+        {isStarted ? (
+          <div className="flex-1 bg-white rounded-lg border border-gray-200 overflow-hidden">
+            <AudioMessageHistory />
+          </div>
+        ) : (
+          <div className="flex-1 bg-white rounded-lg border border-gray-200 flex items-center justify-center">
+            <p className="text-gray-500 text-sm">Chat will appear here once connected</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
