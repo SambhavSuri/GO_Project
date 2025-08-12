@@ -815,7 +815,8 @@ async function deepgramStreamingTTS(
   const apiKey = process.env.NEXT_PUBLIC_DEEPGRAM_API_KEY;
   if (!apiKey) { onError('No Deepgram API key found'); return; }
   try {
-    const url = 'https://api.deepgram.com/v1/speak?model=aura-2-aries-en&encoding=linear16&container=wav&voice=aries';
+    console.log('[StreamingTTS] Using male voice: aura-2-apollo-en');
+    const url = 'https://api.deepgram.com/v1/speak?model=aura-2-apollo-en&encoding=linear16&container=wav&voice=apollo';
     const response = await fetch(url, {
       method: 'POST',
       headers: {

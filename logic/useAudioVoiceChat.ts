@@ -158,7 +158,7 @@ export const useAudioVoiceChat = () => {
         
         console.log('[AudioVoiceChat] Creating live transcription connection...');
         connectionRef.current = deepgramRef.current.listen.live({
-          model: "aura-2-aries",
+          model: "nova-3",
           language: "en-US",
           smart_format: true,
           punctuate: true,
