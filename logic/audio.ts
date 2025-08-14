@@ -4,5 +4,5 @@ export { useAudioSpeakingContext, AudioSpeakingProvider } from './useAudioSpeaki
 export { useStreamingDeepgramTTS } from './useAudioTTS';
 export { useAudioRagIntegration } from './useAudioRagIntegration';
 export { useAudioVoiceChat } from './useAudioVoiceChat';
-export { useAudioTextChat } from './useAudioTextChat';
+
 export { useAudioContext, AudioProvider } from './AudioProvider'; 
