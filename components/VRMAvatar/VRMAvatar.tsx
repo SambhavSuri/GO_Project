@@ -32,7 +32,7 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
   const [modelType, setModelType] = useState<'vrm' | 'glb'>('glb');
   
   // Get audio context for syncing with speech
-  const { isAvatarTalking, isProcessingResponse, onGLBAudioStart } = useAudioContext();
+  const { isAvatarTalking, isProcessingResponse, onGLBAudioStart, onViseme } = useAudioContext();
   
   // Speaking animation state for GLB models
   const speakingIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -65,6 +65,85 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
       KK: "viseme_kk",   // Velar sounds (K, G)
       O: "viseme_O"      // Open back vowel
     };
+  };
+
+  // Azure TTS Viseme ID to morph target mapping (Microsoft Speech SDK standard)
+  const azureVisemeToMorphTarget = (visemeId: number): string => {
+    const visemeMap: { [key: number]: string } = {
+      0: "viseme_sil",    // Silence
+      1: "viseme_aa",     // Open vowel (aa as in 'father')
+      2: "viseme_E",      // Open front vowel (ae as in 'cat')  
+      3: "viseme_aa",     // Open central vowel (ah as in 'father')
+      4: "viseme_O",      // Open back vowel (ao as in 'thought')
+      5: "viseme_aa",     // Diphthong (aw as in 'cow')
+      6: "viseme_I",      // Diphthong (ay as in 'hide')
+      7: "viseme_U",      // Close back vowel (b, p, m)
+      8: "viseme_CH",     // Palato-alveolar (ch as in 'church')
+      9: "viseme_DD",     // Dental/alveolar (d, t, n, l)
+      10: "viseme_TH",    // Dental fricative (dh as in 'the')
+      11: "viseme_E",     // Mid front vowel (eh as in 'bed')
+      12: "viseme_RR",    // R-colored vowel (er as in 'bird')
+      13: "viseme_E",     // Mid front vowel (ey as in 'face')
+      14: "viseme_FF",    // Labiodental (f, v)
+      15: "viseme_kk",    // Velar (g as in 'go')
+      16: "viseme_TH",    // Dental fricative (hh as in 'house')
+      17: "viseme_I",     // Close front vowel (ih as in 'bit')
+      18: "viseme_I",     // Close front vowel (iy as in 'eat')
+      19: "viseme_CH",    // Palato-alveolar (jh as in 'judge')
+      20: "viseme_kk",    // Velar (k as in 'cat')
+      21: "viseme_DD",    // Alveolar lateral (l as in 'lid')
+      22: "viseme_PP",    // Bilabial (m as in 'mat')
+      23: "viseme_nn",    // Alveolar nasal (n as in 'no')
+      24: "viseme_kk",    // Velar nasal (ng as in 'sing')
+      25: "viseme_O",     // Mid back vowel (ow as in 'boat')
+      26: "viseme_O",     // Diphthong (oy as in 'toy')
+      27: "viseme_PP",    // Bilabial (p as in 'put')
+      28: "viseme_RR",    // Alveolar approximant (r as in 'red')
+      29: "viseme_SS",    // Alveolar fricative (s as in 'sit')
+      30: "viseme_CH",    // Palato-alveolar (sh as in 'she')
+      31: "viseme_DD",    // Alveolar (t as in 'talk')
+      32: "viseme_TH",    // Dental fricative (th as in 'think')
+      33: "viseme_U",     // Close back vowel (uh as in 'book')
+      34: "viseme_U",     // Close back vowel (uw as in 'too')
+      35: "viseme_FF",    // Labiodental (v as in 'vat')
+      36: "viseme_U",     // Labio-velar (w as in 'with')
+      37: "viseme_I",     // Palatal (y as in 'yard')
+      38: "viseme_SS",    // Alveolar fricative (z as in 'zap')
+      39: "viseme_CH",    // Palato-alveolar (zh as in 'measure')
+    };
+    
+    return visemeMap[visemeId] || "viseme_sil";
+  };
+
+  // Handle Azure TTS viseme events with precise timing
+  const handleAzureViseme = (viseme: { visemeId: number; offset: number; duration: number }) => {
+    if (modelType !== 'glb' || !modelRef.current) return;
+    
+    console.log(`👄 Azure Viseme ${viseme.visemeId} -> ${azureVisemeToMorphTarget(viseme.visemeId)} (${viseme.duration}ms)`);
+    
+    // Reset all visemes first for clean transitions
+    const allVisemes = [
+      'viseme_sil', 'viseme_aa', 'viseme_E', 'viseme_I', 'viseme_O', 'viseme_U', 
+      'viseme_PP', 'viseme_DD', 'viseme_FF', 'viseme_TH', 'viseme_CH', 'viseme_SS', 
+      'viseme_nn', 'viseme_RR', 'viseme_kk'
+    ];
+    
+    allVisemes.forEach(viseme => {
+      lerpMorphTarget(viseme, 0.0, 0.3);
+    });
+    
+    // Apply the specific viseme with appropriate strength
+    const targetMorph = azureVisemeToMorphTarget(viseme.visemeId);
+    const strength = viseme.visemeId === 0 ? 0.2 : 1.0; // Silence gets lower strength
+    
+    lerpMorphTarget(targetMorph, strength, 0.2);
+    
+    // Schedule reset after viseme duration
+    setTimeout(() => {
+      if (!speakingIntervalRef.current) { // Only reset if not in manual speaking mode
+        lerpMorphTarget(targetMorph, 0.0, 0.3);
+      }
+    }, viseme.duration);
   };
 
   // Lerp morph target to a specific value
@@ -693,6 +772,20 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
       };
     }
   }, [onGLBAudioStart, modelType]);
+
+  // Register Azure TTS viseme callback with audio context
+  useEffect(() => {
+    if (onViseme && modelType === 'glb') {
+      console.log('🎯 Registering Azure TTS viseme callback for GLB model');
+      
+      onViseme(handleAzureViseme);
+      
+      return () => {
+        // Clean up callback
+        onViseme(() => {});
+      };
+    }
+  }, [onViseme, modelType]);
   
   // Sync animations with audio state
   useEffect(() => {

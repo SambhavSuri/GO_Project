@@ -295,14 +295,46 @@ export const useAudioVoiceChat = () => {
           setIsDeepgramConnected(true);
           setShowStartTalkingPrompt(true);
           
+          // Reset failure counters on successful connection
+          (window as any).__keepAliveFailures = 0;
+          (window as any).__intensiveOperation = false;
+          console.log('🔄 [CONNECTION OPEN] Reset all failure counters');
+          
           // Set up keep-alive ping every 3 seconds to maintain connection
           keepAliveTimerRef.current = setInterval(() => {
             if (connectionRef.current) {
               try {
+                // Skip keep-alive during intensive operations (like TTS stop processing)
+                if ((window as any).__intensiveOperation) {
+                  console.log('🔄 [KEEP-ALIVE] Skipping during intensive operation');
+                  return;
+                }
+                
                 connectionRef.current.keepAlive();
+                
+                // Reset failure counter on successful keep-alive
+                if ((window as any).__keepAliveFailures > 0) {
+                  console.log('✅ [KEEP-ALIVE] Success - resetting failure counter');
+                  (window as any).__keepAliveFailures = 0;
+                }
               } catch (error) {
-                console.error('Error sending keep-alive ping:', error);
-                setIsDeepgramConnected(false);
+                console.error('⚠️ [KEEP-ALIVE ERROR] Error sending keep-alive ping:', error);
+                
+                // Don't immediately close connection on keep-alive error - could be temporary
+                // Only close if we have multiple consecutive failures
+                let keepAliveFailures = (window as any).__keepAliveFailures || 0;
+                keepAliveFailures++;
+                (window as any).__keepAliveFailures = keepAliveFailures;
+                
+                console.log(`[KEEP-ALIVE] Failure count: ${keepAliveFailures}/3`);
+                
+                if (keepAliveFailures >= 3) {
+                  console.error('❌ [KEEP-ALIVE] Multiple failures - closing connection');
+                  setIsDeepgramConnected(false);
+                  (window as any).__keepAliveFailures = 0; // Reset counter
+                } else {
+                  console.log('🔄 [KEEP-ALIVE] Temporary failure - keeping connection open');
+                }
               }
             }
           }, 3000);
@@ -497,7 +529,7 @@ export const useAudioVoiceChat = () => {
               
               // Reset silence timer for interim transcripts too
               if (silenceTimerRef.current) {
-                clearTimeout(silenceTimerRef.current);
+                clearTimeout(silenceTimerRef.current);    
               }
               silenceTimerRef.current = setTimeout(handleSilence, silenceThresholdRef.current);
             } else {
@@ -510,8 +542,22 @@ export const useAudioVoiceChat = () => {
         });
 
         connectionRef.current.on(LiveTranscriptionEvents.Error, (error: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
-          console.error('Deepgram error:', error);
-          setIsDeepgramConnected(false);
+          console.error('⚠️ [DEEPGRAM ERROR]', error);
+          
+          // Only close connection for critical errors, not minor ones
+          const errorType = error?.type || error?.message || 'unknown';
+          const isCriticalError = errorType.includes('socket') || 
+                                 errorType.includes('connection') || 
+                                 errorType.includes('authentication') ||
+                                 errorType.includes('authorization');
+          
+          if (isCriticalError) {
+            console.error('❌ [CRITICAL DEEPGRAM ERROR] Closing connection due to critical error:', errorType);
+            setIsDeepgramConnected(false);
+          } else {
+            console.log('🔄 [NON-CRITICAL DEEPGRAM ERROR] Keeping connection open for error:', errorType);
+            // Don't close connection for non-critical errors
+          }
         });
 
         connectionRef.current.on(LiveTranscriptionEvents.Metadata, (data: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any

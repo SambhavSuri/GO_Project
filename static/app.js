@@ -754,8 +754,8 @@ function sendMessage() {
     // Clear input
     chatInput.value = '';
     
-    // Send to server
-    socket.emit('chat', { content: message });
+    // Use streaming RAG instead of socket.emit
+    sendToStreamingRAG(message);
 }
 
 // Send transcription directly to RAG pipeline
@@ -763,8 +763,8 @@ function sendTranscriptionToRAG(transcription) {
     // Add user message to chat to show what was transcribed
     addUserMessage(transcription);
     
-    // Send directly to RAG pipeline via chat socket
-    socket.emit('chat', { content: transcription, source: 'voice_transcription' });
+    // Use streaming RAG instead of socket.emit
+    sendToStreamingRAG(transcription, 'voice_transcription');
 }
 
 // Handle AI response
@@ -786,6 +786,123 @@ function handleAIResponse(data) {
     if (data.audio) {
         playAudio(data.audio);
     }
+}
+
+// Send to streaming RAG
+async function sendToStreamingRAG(message, source = 'text_input') {
+    // Show thinking state
+    addSystemMessage('🤔 AI is thinking...');
+    
+    // Switch to thinking animation if available
+    if (window.switchToThinking) {
+        window.switchToThinking();
+    }
+    
+    // Initialize sentence detector and TTS queue
+    if (window.sentenceDetector) {
+        window.sentenceDetector.reset();
+    }
+    if (window.ttsQueueManager) {
+        window.ttsQueueManager.reset();
+    }
+    
+    // Create a temporary message div for streaming response
+    const messageDiv = document.createElement('div');
+    messageDiv.className = 'message ai streaming';
+    messageDiv.innerHTML = `<div class="message-content"><i class="fas fa-robot"></i> <span class="ai-text"></span></div>`;
+    chatMessages.appendChild(messageDiv);
+    const aiTextSpan = messageDiv.querySelector('.ai-text');
+    
+    let fullResponse = '';
+    
+    try {
+        // Get conversation history
+        const conversationHistory = getConversationHistory();
+        
+        // Stream RAG response
+        await window.streamingRAGClient.streamRAGResponse(
+            message,
+            conversationHistory,
+            // On chunk
+            (chunk) => {
+                console.log('[App] Received RAG chunk:', chunk);
+                fullResponse += chunk;
+                aiTextSpan.textContent = fullResponse;
+                scrollToBottom();
+                
+                // Process chunk for sentence-based TTS
+                if (window.sentenceDetector) {
+                    const completeSentences = window.sentenceDetector.addChunk(chunk);
+                    completeSentences.forEach(sentence => {
+                        console.log('[App] Complete sentence detected:', sentence);
+                        if (window.ttsQueueManager) {
+                            window.ttsQueueManager.addToQueue(sentence);
+                        }
+                    });
+                }
+            },
+            // On complete
+            (finalResponse) => {
+                console.log('[App] RAG response complete:', finalResponse);
+                messageDiv.classList.remove('streaming');
+                
+                // Process any remaining text for TTS
+                if (window.sentenceDetector) {
+                    const remaining = window.sentenceDetector.flush();
+                    if (remaining && window.ttsQueueManager) {
+                        window.ttsQueueManager.addToQueue(remaining);
+                    }
+                }
+                
+                addSystemMessage('✅ Response complete');
+            },
+            // On error
+            (error) => {
+                console.error('[App] RAG error:', error);
+                messageDiv.remove();
+                addSystemMessage(`❌ Error: ${error}`);
+                
+                // Stop TTS on error
+                if (window.ttsQueueManager) {
+                    window.ttsQueueManager.stop();
+                }
+            }
+        );
+    } catch (error) {
+        console.error('[App] Error in sendToStreamingRAG:', error);
+        messageDiv.remove();
+        addSystemMessage(`❌ Error: ${error.message}`);
+    }
+}
+
+// Get conversation history for RAG context
+function getConversationHistory() {
+    const history = [];
+    const messages = chatMessages.querySelectorAll('.message');
+    
+    messages.forEach(msg => {
+        if (msg.classList.contains('user')) {
+            const content = msg.querySelector('.message-content').textContent;
+            // Remove the icon prefix
+            const cleanContent = content.replace(/^[^\s]+\s/, '');
+            history.push({
+                role: 'user',
+                content: cleanContent,
+                timestamp: Date.now()
+            });
+        } else if (msg.classList.contains('ai') && !msg.classList.contains('streaming')) {
+            const content = msg.querySelector('.message-content').textContent;
+            // Remove the icon prefix
+            const cleanContent = content.replace(/^[^\s]+\s/, '');
+            history.push({
+                role: 'assistant',
+                content: cleanContent,
+                timestamp: Date.now()
+            });
+        }
+    });
+    
+    return history;
 }
 
 // Add user message to chat

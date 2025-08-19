@@ -1,13 +1,13 @@
-// import React from "react";
 import { useAudioContext } from "./AudioProvider";
 import { useAudioSpeakingContext } from "./useAudioSpeakingContext";
 import { useParams } from "next/navigation";
 import { getToken, logout } from "../lib/auth";
-import { API_ENDPOINTS } from '../lib/constants';
 import { useWebSearch } from './WebSearchContext';
-import { useRef, useEffect } from 'react';
+import { useRef, useEffect, useCallback } from 'react';
+import { useStreamingRAGWithTTS } from './useStreamingRAGWithTTS';
+import { ConversationMessage } from './useStreamingRAG';
 
-// Simplified RAG integration for audio-only mode (gather full response first, then send to TTS)
+// Streaming RAG integration for audio mode with sentence-based TTS
 export const useAudioRagIntegration = () => {
   const params = useParams();
   const { webSearchEnabled } = useWebSearch();
@@ -20,97 +20,47 @@ export const useAudioRagIntegration = () => {
   }, [webSearchEnabled]);
   
   const { 
-    appendToCurrentAiResponse, 
-    finalizeCurrentAiResponse, 
-    setIsProcessingResponse, 
-    speakText,
-    addAiMessage 
+    addUserMessage,
+    addAiMessage,
+    conversationHistory,
+    clearCurrentAiResponse
   } = useAudioContext();
-  const { isInterruptedRef, resetInterruptionState, requestAudioInterruption } = useAudioSpeakingContext();
+  
+  const { isInterruptedRef, requestAudioInterruption } = useAudioSpeakingContext();
+  
+  // Use the streaming RAG with TTS hook
+  const {
+    sendMessage,
+    stopStreaming,
+    isStreaming,
+    currentResponse,
+    error,
+    isSpeaking
+  } = useStreamingRAGWithTTS();
 
-  const fetchRagResponse = async (question: string) => {
+  const fetchRagResponse = useCallback(async (question: string) => {
     console.log('[AudioRAG] Processing question:', question);
+    
+    // Clear any previous response
+    clearCurrentAiResponse();
     
     // Get the current web search state from the ref
     const currentWebSearchEnabled = webSearchEnabledRef.current;
     console.log('[AudioRAG] Current web search enabled state:', currentWebSearchEnabled);
     
-    setIsProcessingResponse(true);
-    resetInterruptionState();
-
-    let accumulatedResponse = '';
-    let isFirstChunk = true;
-    
+    // Convert conversation history to the format expected by the streaming RAG
+    const formattedHistory: ConversationMessage[] = conversationHistory.map(pair => [
+      { role: 'user' as const, content: pair.user, timestamp: pair.timestamp },
+      ...(pair.ai ? [{ role: 'assistant' as const, content: pair.ai, timestamp: pair.timestamp }] : [])
+    ]).flat();
     
     try {
-      const requestBody = { 
-        query: question,
-        n_results: 1
-      };
+      // Send message with streaming RAG and TTS
+      await sendMessage(question, formattedHistory);
       
-      const ragAccessToken = process.env.RAG_ACCESS_TOKEN;
-
-      if (!ragAccessToken) {
-        console.error('RAG_ACCESS_TOKEN not configured');
-        // return res.status(500).json({ message: 'RAG access token not configured' });
-      }
+      console.log('[AudioRAG] Streaming RAG response initiated');
       
-      console.log('[AudioRAG] Sending request:', requestBody);
-
-      const response = await fetch(`http://68.154.32.96:8000${API_ENDPOINTS.RAG_QUERY}`, {
-        method: "POST",
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NTU1MTM4MzZ9.wrXagq0riz3X0fN4tvA1nE3gAiCXjZdXA3vCso1-4U8`,
-        },
-        body: JSON.stringify(requestBody)
-      });
-
-      // Handle non-streaming errors using axios error format
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('[AudioRAG] API error:', errorText);
-        
-        // Parse error response to match axios format
-        let errorData;
-        try {
-          errorData = JSON.parse(errorText);
-        } catch {
-          errorData = { message: errorText };
-        }
-        
-        const axiosError = {
-          status: response.status,
-          message: errorData.message || errorData.detail || `HTTP ${response.status}: ${errorText}`,
-          code: response.status.toString(),
-          details: errorData
-        };
-        
-        throw axiosError;
-      }
-
-      // Parse the JSON response
-      const data = await response.json();
-      console.log('[AudioRAG] Received response:', data);
-      
-      // Extract the answer from the response
-      if (data.answer) {
-        accumulatedResponse = data.answer;
-        console.log('[AudioRAG] Processing answer:', accumulatedResponse);
-        
-        // Update the UI with the response
-        appendToCurrentAiResponse(accumulatedResponse);
-        
-        // Send the complete response to TTS
-        if (accumulatedResponse.trim() && !isInterruptedRef.current) {
-          console.log('[AudioRAG] Sending complete response to TTS:', accumulatedResponse);
-          await speakText(accumulatedResponse);
-        }
-      } else {
-        throw new Error('No answer in response');
-      }
-
-    } catch (error: unknown) {
+    } catch (error) {
       console.error("[AudioRAG] RAG integration error:", error);
       
       // Handle different error types and show them in chat
@@ -118,8 +68,8 @@ export const useAudioRagIntegration = () => {
       const err = error as { name?: string; message?: string; status?: number; code?: string };
       
       if (err.name === "AbortError") {
-        console.warn('[AudioRAG] Request was aborted (likely due to timeout)');
-        errorMessage = 'Request timed out. The AI is taking longer than expected to respond. This might be due to a complex question or server load. Please try again with a simpler question or wait a moment before retrying.';
+        console.warn('[AudioRAG] Request was aborted');
+        errorMessage = 'Request was cancelled.';
       } else if (err.message && err.message.includes('Deadline Exceeded')) {
         console.error('[AudioRAG] gRPC deadline exceeded');
         errorMessage = 'The AI service is experiencing high load. Please try again in a moment or rephrase your question to be more specific.';
@@ -164,20 +114,14 @@ export const useAudioRagIntegration = () => {
       
       // Add error message to chat
       addAiMessage(errorMessage);
-      
-      // Speak the error message for audio mode
-      if (!isInterruptedRef.current) {
-        await speakText(errorMessage);
-      }
-      
-      // Re-throw the error for any additional handling
-      throw error;
-    } finally {
-      console.log('[AudioRAG] Finalizing response');
-      finalizeCurrentAiResponse();
-      setIsProcessingResponse(false);
     }
-  };
+  }, [sendMessage, conversationHistory, addAiMessage, clearCurrentAiResponse]);
 
-  return { fetchRagResponse, requestAudioInterruption };
-}; 
+  return { 
+    fetchRagResponse, 
+    requestAudioInterruption,
+    stopStreaming,
+    isStreaming,
+    isSpeaking 
+  };
+};

@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useRef, useEffect, useMemo, useCallback } from "react";
 // import { useStreamingAvatarContext } from "./context";
 import { useDeepgramTTS } from "./useAudioTTS";
+import { VisemeData } from "../lib/azureTTS";
 // import { useAudioSpeakingContext } from "./useAudioSpeakingContext";
 
 // Define the ConversationPair interface to match the video avatar
@@ -68,6 +69,9 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   // Callback for triggering GLB speaking animation when audio actually starts
   const onGLBAudioStartRef = useRef<(() => void) | null>(null);
 
+  // Callback for viseme events from Azure TTS
+  const onVisemeRef = useRef<((viseme: VisemeData) => void) | null>(null);
+
   // Get TTS functions - this will work now because we're not in a circular dependency
   const ttsFunctions = useDeepgramTTS(
     (talking: boolean) => {
@@ -90,6 +94,16 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       // Call the GLB animation callback if it exists
       if (onGLBAudioStartRef.current) {
         onGLBAudioStartRef.current();
+      }
+    },
+    (viseme: VisemeData) => {
+      console.log('[AudioProvider] Viseme event received:', viseme.visemeId, 'at offset:', viseme.offset, 'duration:', viseme.duration);
+      // Call the viseme callback if it exists
+      if (onVisemeRef.current) {
+        console.log('[AudioProvider] Passing viseme to avatar:', viseme.visemeId);
+        onVisemeRef.current(viseme);
+      } else {
+        console.log('[AudioProvider] No viseme callback registered');
       }
     }
   );
@@ -119,8 +133,8 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // Function to append to current AI response (for streaming)
   const appendToCurrentAiResponse = useCallback((text: string) => {
-    setCurrentAiResponse(text);
-    currentAiResponseRef.current = text;
+    setCurrentAiResponse(prev => prev + text);
+    currentAiResponseRef.current = currentAiResponseRef.current + text;
   }, []);
 
   // Function to finalize current AI response and add to conversation history
@@ -188,6 +202,12 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     await ttsFunctions.speakText(text);
   }, [ttsFunctions]); // Include ttsFunctions dependency
   
+  // Function to clear current AI response (for new messages)
+  const clearCurrentAiResponse = useCallback(() => {
+    setCurrentAiResponse('');
+    currentAiResponseRef.current = '';
+  }, []);
+  
   const contextValue = useMemo(() => ({
     // Avatar state
     conversationHistory,
@@ -248,6 +268,7 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     // RAG integration functions
     appendToCurrentAiResponse,
     finalizeCurrentAiResponse,
+    clearCurrentAiResponse,
     
     // TTS functions
     speakText,
@@ -261,6 +282,11 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     // GLB animation callback for when audio actually starts playing
     onGLBAudioStart: (callback: () => void) => {
       onGLBAudioStartRef.current = callback;
+    },
+    
+    // Viseme callback for lip sync animation
+    onViseme: (callback: (viseme: VisemeData) => void) => {
+      onVisemeRef.current = callback;
     },
     
     // Override avatar methods for audio-only mode
@@ -290,6 +316,7 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     clearError,
     appendToCurrentAiResponse,
     finalizeCurrentAiResponse,
+    clearCurrentAiResponse,
     speakText,
     ttsFunctions.stopSpeaking,
     initializeAudioContext

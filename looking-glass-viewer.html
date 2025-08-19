@@ -1,0 +1,997 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Looking Glass 3D Model Viewer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: white;
+            overflow: hidden;
+            height: 100vh;
+        }
+
+        .container {
+            position: relative;
+            width: 100%;
+            height: 100vh;
+            display: flex;
+        }
+
+        #scene-container {
+            flex: 1;
+            position: relative;
+            background: linear-gradient(45deg, #1a1a2e, #16213e);
+        }
+
+        .control-panel {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 20px;
+            max-width: 300px;
+            z-index: 1000;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .control-section {
+            margin-bottom: 20px;
+        }
+
+        .control-section h3 {
+            font-size: 1rem;
+            margin-bottom: 10px;
+            color: #4fc3f7;
+            border-bottom: 2px solid #4fc3f7;
+            padding-bottom: 5px;
+        }
+
+        .button-group {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+            margin-bottom: 15px;
+        }
+
+        .control-btn {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border: none;
+            border-radius: 8px;
+            padding: 8px 12px;
+            color: white;
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: all 0.3s ease;
+            border: 1px solid transparent;
+        }
+
+        .control-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .control-btn.active {
+            background: linear-gradient(135deg, #4fc3f7, #29b6f6);
+            border-color: #29b6f6;
+        }
+
+        .looking-glass-panel {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.9);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 25px;
+            z-index: 1000;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            text-align: center;
+            min-width: 250px;
+        }
+
+        .lg-status {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #4caf50;
+            animation: pulse 2s infinite;
+        }
+
+        .status-dot.disconnected {
+            background: #f44336;
+            animation: none;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        .lg-activate-btn {
+            background: linear-gradient(135deg, #ff6b6b, #ee5a24);
+            border: none;
+            border-radius: 12px;
+            padding: 15px 25px;
+            color: white;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            width: 100%;
+            margin-top: 10px;
+            box-shadow: 0 4px 15px rgba(255, 107, 107, 0.3);
+        }
+
+        .lg-activate-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 20px rgba(255, 107, 107, 0.4);
+        }
+
+        .lg-activate-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .lg-activate-btn:focus {
+            outline: 2px solid #ff6b6b;
+            outline-offset: 2px;
+        }
+
+        .environment-selector {
+            margin-bottom: 15px;
+        }
+
+        .env-option {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            padding: 10px;
+            margin: 5px 0;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .env-option:hover {
+            background: rgba(255, 255, 255, 0.2);
+            border-color: #4fc3f7;
+        }
+
+        .env-option.active {
+            background: rgba(79, 195, 247, 0.3);
+            border-color: #4fc3f7;
+        }
+
+        .loading-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+            backdrop-filter: blur(5px);
+        }
+
+        .loading-spinner {
+            width: 60px;
+            height: 60px;
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: #4fc3f7;
+            animation: spin 1s ease-in-out infinite;
+            margin-bottom: 20px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .loading-text {
+            font-size: 1.2rem;
+            margin-bottom: 10px;
+        }
+
+        .loading-progress {
+            font-size: 0.9rem;
+            opacity: 0.7;
+        }
+
+        .back-button {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 10px;
+            padding: 12px 20px;
+            color: white;
+            text-decoration: none;
+            transition: all 0.3s ease;
+            z-index: 1000;
+        }
+
+        .back-button:hover {
+            background: rgba(255, 255, 255, 0.1);
+            transform: translateY(-2px);
+        }
+
+        .performance-stats {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 10px 15px;
+            border-radius: 8px;
+            font-size: 0.8rem;
+            font-family: monospace;
+            z-index: 1000;
+        }
+
+        @media (max-width: 768px) {
+            .control-panel, .looking-glass-panel {
+                position: relative;
+                max-width: 100%;
+                margin: 10px;
+            }
+            
+            .container {
+                flex-direction: column;
+            }
+            
+            #scene-container {
+                height: 60vh;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div id="scene-container"></div>
+        
+        <!-- Loading Overlay -->
+        <div class="loading-overlay" id="loadingOverlay">
+            <div class="loading-spinner"></div>
+            <div class="loading-text">Loading 3D Model...</div>
+            <div class="loading-progress" id="loadingProgress">Initializing...</div>
+        </div>
+        
+        <!-- Control Panel -->
+        <div class="control-panel">
+            <div class="control-section">
+                <h3>🎭 Animations</h3>
+                <div class="button-group">
+                    <button class="control-btn active" data-animation="idle">Idle</button>
+                    <button class="control-btn" data-animation="talking">Talking</button>
+                    <button class="control-btn" data-animation="thinking">Thinking</button>
+                    <button class="control-btn" data-animation="waving">Waving</button>
+                    <button class="control-btn" data-animation="walking">Walking</button>
+                </div>
+            </div>
+            
+            <div class="control-section">
+                <h3>😊 Expressions</h3>
+                <div class="button-group">
+                    <button class="control-btn active" data-expression="default">Default</button>
+                    <button class="control-btn" data-expression="smile">Smile</button>
+                    <button class="control-btn" data-expression="surprised">Surprised</button>
+                    <button class="control-btn" data-expression="sad">Sad</button>
+                    <button class="control-btn" data-expression="angry">Angry</button>
+                    <button class="control-btn" data-expression="crazy">Crazy</button>
+                </div>
+            </div>
+            
+            <div class="control-section">
+                <h3>🌍 Environment</h3>
+                <div class="environment-selector">
+                    <div class="env-option active" data-env="studio">
+                        <span>🎬</span> Professional Studio
+                    </div>
+                    <div class="env-option" data-env="space">
+                        <span>🌌</span> Space Environment
+                    </div>
+                    <div class="env-option" data-env="minimal">
+                        <span>⚪</span> Minimal White
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Looking Glass Panel -->
+        <div class="looking-glass-panel">
+            <h3 style="margin-bottom: 15px; color: #4fc3f7;">🔮 Looking Glass</h3>
+            <div class="lg-status">
+                <div class="status-dot" id="lgStatusDot"></div>
+                <span id="lgStatusText">Initializing...</span>
+            </div>
+            <div style="font-size: 0.9rem; opacity: 0.8; margin-bottom: 15px;">
+                Direct projection to Looking Glass device
+            </div>
+            <button class="lg-activate-btn" id="lgActivateBtn">
+                🚀 Enter Looking Glass
+            </button>
+        </div>
+        
+        <!-- Back Button -->
+        <a href="http://localhost:3001/audio-chat" class="back-button">
+            ← Back to Audio Chat
+        </a>
+        
+        <!-- Performance Stats -->
+        <div class="performance-stats" id="performanceStats">
+            FPS: -- | Triangles: --
+        </div>
+    </div>
+
+    <!-- Three.js and Required Libraries -->
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "./static/three.js-master/build/three.module.js",
+            "three/examples/jsm/": "./static/three.js-master/examples/jsm/"
+        }
+    }
+    </script>
+
+    <!-- Load Looking Glass WebXR Polyfill -->
+    <script src="holoplay-webxr.js"></script>
+    
+    <script type="module">
+        import * as THREE from 'three';
+        import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+        import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
+        import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+        import { VRButton } from 'three/examples/jsm/webxr/VRButton.js';
+
+        
+        // Looking Glass integration with direct WebXR support
+        let lookingGlassPolyfill = null;
+        let lookingGlassSupported = false;
+        let xrSession = null;
+        
+        // Initialize Looking Glass polyfill
+        async function initializeLookingGlass() {
+            try {
+                console.log('🔄 Initializing Looking Glass WebXR...');
+                lookingGlassPolyfill = new window.LookingGlassWebXRPolyfill();
+                
+                // Give it a moment to initialize
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                
+                // Check if WebXR is now available
+                if (navigator.xr) {
+                    console.log('✅ WebXR API is available');
+                    lookingGlassSupported = true;
+                } else {
+                    console.warn('❌ WebXR API not available after polyfill');
+                    lookingGlassSupported = false;
+                }
+                
+                // Try to check if immersive-vr is supported
+                if (navigator.xr && navigator.xr.isSessionSupported) {
+                    try {
+                        const supported = await navigator.xr.isSessionSupported('immersive-vr');
+                        console.log('🔍 Immersive VR support:', supported);
+                        lookingGlassSupported = supported;
+                    } catch (error) {
+                        console.log('ℹ️ Session support check failed, but will try anyway');
+                        lookingGlassSupported = true; // Try anyway
+                    }
+                }
+                
+                return lookingGlassSupported;
+            } catch (error) {
+                console.warn('Looking Glass initialization failed:', error);
+                // Still return true to allow attempting the connection
+                return true;
+            }
+        }
+
+        // Global variables
+        let scene, camera, renderer, controls, clock;
+        let currentModel, currentMixer;
+        let animationCache = {};
+        let currentAction = null;
+        let isLookingGlassActive = false;
+        let performanceStats = { fps: 0, triangles: 0 };
+
+        // Animation paths
+        const animationPaths = {
+            idle: '/public/static/animations/idleMale.glb',
+            talking: '/public/static/animations/Talking.glb',
+            thinking: '/public/static/animations/listenNod.glb', 
+            walking: '/public/static/animations/walkingLeftTurn.glb',
+            waving: '/public/static/animations/waving.glb'
+        };
+
+        // Facial expressions for GLB models
+        const facialExpressions = {
+            default: {},
+            smile: {
+                browInnerUp: 0.17,
+                eyeSquintLeft: 0.4,
+                eyeSquintRight: 0.44,
+                noseSneerLeft: 0.17,
+                noseSneerRight: 0.14,
+                mouthPressLeft: 0.61,
+                mouthPressRight: 0.41,
+            },
+            surprised: {
+                eyeWideLeft: 0.5,
+                eyeWideRight: 0.5,
+                jawOpen: 0.351,
+                mouthFunnel: 1,
+                browInnerUp: 1,
+            },
+            sad: {
+                mouthFrownLeft: 1,
+                mouthFrownRight: 1,
+                mouthShrugLower: 0.783,
+                browInnerUp: 0.452,
+                eyeSquintLeft: 0.72,
+                eyeSquintRight: 0.75,
+                eyeLookDownLeft: 0.5,
+                eyeLookDownRight: 0.5,
+                jawForward: 1,
+            },
+            angry: {
+                browDownLeft: 1,
+                browDownRight: 1,
+                eyeSquintLeft: 1,
+                eyeSquintRight: 1,
+                jawForward: 1,
+                jawLeft: 1,
+                mouthShrugLower: 1,
+                noseSneerLeft: 1,
+                noseSneerRight: 0.42,
+            },
+            crazy: {
+                browInnerUp: 0.9,
+                jawForward: 1,
+                noseSneerLeft: 0.57,
+                noseSneerRight: 0.51,
+                eyeLookDownLeft: 0.394,
+                eyeLookUpRight: 0.404,
+                jawOpen: 0.962,
+                mouthDimpleLeft: 0.962,
+                mouthDimpleRight: 0.962,
+                tongueOut: 0.962,
+            },
+        };
+
+        // Environment configurations
+        const environments = {
+            studio: {
+                background: new THREE.Color(0x2a2a2a),
+                ambientColor: 0x404040,
+                ambientIntensity: 0.4,
+                lights: [
+                    { type: 'directional', color: 0xffffff, intensity: 1, position: [5, 10, 5] },
+                    { type: 'directional', color: 0x4040ff, intensity: 0.5, position: [-5, 5, -5] },
+                    { type: 'point', color: 0xff8040, intensity: 0.8, position: [10, 5, 0] }
+                ]
+            },
+            space: {
+                background: new THREE.Color(0x0a0a2e),
+                ambientColor: 0x1a1a3a,
+                ambientIntensity: 0.3,
+                lights: [
+                    { type: 'directional', color: 0x8080ff, intensity: 0.8, position: [0, 10, 0] },
+                    { type: 'point', color: 0xff4080, intensity: 1.2, position: [8, 8, 8] }
+                ]
+            },
+            minimal: {
+                background: new THREE.Color(0xf0f0f0),
+                ambientColor: 0xffffff,
+                ambientIntensity: 0.6,
+                lights: [
+                    { type: 'directional', color: 0xffffff, intensity: 1.2, position: [2, 5, 2] }
+                ]
+            }
+        };
+
+        // Initialize the scene
+        function initScene() {
+            // Scene
+            scene = new THREE.Scene();
+            
+            // Camera
+            camera = new THREE.PerspectiveCamera(30, window.innerWidth / window.innerHeight, 0.1, 20);
+            camera.position.set(0, 1, 2.73);
+            
+            // Renderer
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+            
+            document.getElementById('scene-container').appendChild(renderer.domElement);
+            
+            // Controls
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.target.set(0, 1, 0);
+            
+            // Clock
+            clock = new THREE.Clock();
+            
+            // Set initial environment
+            setEnvironment('studio');
+            
+            console.log('✅ Scene initialized');
+        }
+
+        // Set environment lighting and background
+        function setEnvironment(envName) {
+            const env = environments[envName];
+            if (!env) return;
+            
+            // Clear existing lights
+            scene.children = scene.children.filter(child => 
+                !(child instanceof THREE.Light)
+            );
+            
+            // Set background
+            scene.background = env.background;
+            
+            // Add ambient light
+            const ambientLight = new THREE.AmbientLight(env.ambientColor, env.ambientIntensity);
+            scene.add(ambientLight);
+            
+            // Add configured lights
+            env.lights.forEach(lightConfig => {
+                let light;
+                if (lightConfig.type === 'directional') {
+                    light = new THREE.DirectionalLight(lightConfig.color, lightConfig.intensity);
+                    light.position.set(...lightConfig.position);
+                    light.castShadow = true;
+                    light.shadow.mapSize.width = 2048;
+                    light.shadow.mapSize.height = 2048;
+                } else if (lightConfig.type === 'point') {
+                    light = new THREE.PointLight(lightConfig.color, lightConfig.intensity, 20);
+                    light.position.set(...lightConfig.position);
+                    light.castShadow = true;
+                }
+                scene.add(light);
+            });
+            
+            console.log(`✅ Environment set to: ${envName}`);
+        }
+
+        // Initialize Looking Glass
+        async function initLookingGlass() {
+            try {
+                lookingGlassSupported = await initializeLookingGlass();
+                
+                // Always enable WebXR on renderer for Looking Glass support
+                renderer.xr.enabled = true;
+                
+                // Add VR button (hidden)
+                const vrButton = VRButton.createButton(renderer);
+                vrButton.style.display = 'none'; // Hide the default VR button
+                document.body.appendChild(vrButton);
+                
+                if (lookingGlassSupported) {
+                    updateLookingGlassStatus(true, 'Ready - Click to activate');
+                    console.log('✅ Looking Glass WebXR ready');
+                } else {
+                    updateLookingGlassStatus(false, 'Ready to try connection');
+                    console.log('ℹ️ Looking Glass WebXR polyfill loaded, ready to attempt connection');
+                }
+            } catch (error) {
+                console.warn('Looking Glass initialization failed:', error);
+                updateLookingGlassStatus(false, 'Ready to try connection');
+            }
+        }
+
+        // Update Looking Glass status
+        function updateLookingGlassStatus(connected, statusText) {
+            const statusDot = document.getElementById('lgStatusDot');
+            const statusTextEl = document.getElementById('lgStatusText');
+            
+            if (connected) {
+                statusDot.className = 'status-dot';
+                statusTextEl.textContent = statusText;
+            } else {
+                statusDot.className = 'status-dot disconnected';
+                statusTextEl.textContent = statusText;
+            }
+        }
+
+        // Load main model
+        async function loadModel() {
+            updateLoadingProgress('Loading main model...');
+            
+            const loader = new GLTFLoader();
+            try {
+                const gltf = await loader.loadAsync('/public/static/assets/6891a06aece5d61d2d726697.glb');
+                currentModel = gltf.scene;
+                
+                // Scale and position the model
+                currentModel.scale.set(1, 1, 1);
+                currentModel.position.set(0, 0, 0);
+                
+                // Center the model
+                const box = new THREE.Box3().setFromObject(currentModel);
+                const center = box.getCenter(new THREE.Vector3());
+                currentModel.position.sub(center);
+                currentModel.position.y = 0;
+                
+                // Enable shadows
+                currentModel.traverse((child) => {
+                    if (child.isMesh) {
+                        child.castShadow = true;
+                        child.receiveShadow = true;
+                    }
+                });
+                
+                scene.add(currentModel);
+                
+                // Create animation mixer
+                currentMixer = new THREE.AnimationMixer(currentModel);
+                
+                console.log('✅ Main model loaded');
+                updateLoadingProgress('Loading animations...');
+                
+                // Load animations
+                await loadAnimations();
+                
+                // Start with idle animation
+                playAnimation('idle');
+                
+            } catch (error) {
+                console.error('Failed to load model:', error);
+                updateLoadingProgress('Failed to load model');
+            }
+        }
+
+        // Load all animations
+        async function loadAnimations() {
+            const promises = Object.entries(animationPaths).map(async ([name, path]) => {
+                try {
+                    const extension = path.split('.').pop().toLowerCase();
+                    let clip;
+                    
+                    if (extension === 'glb' || extension === 'gltf') {
+                        const loader = new GLTFLoader();
+                        const gltf = await loader.loadAsync(path);
+                        clip = gltf.animations[0];
+                    } else if (extension === 'fbx') {
+                        const loader = new FBXLoader();
+                        const fbx = await loader.loadAsync(path);
+                        clip = fbx.animations[0];
+                    }
+                    
+                    if (clip) {
+                        const action = currentMixer.clipAction(clip);
+                        action.loop = THREE.LoopRepeat;
+                        animationCache[name] = action;
+                        console.log(`✅ Cached animation: ${name}`);
+                    }
+                } catch (error) {
+                    console.error(`Failed to load animation ${name}:`, error);
+                }
+            });
+            
+            await Promise.all(promises);
+            console.log('✅ All animations loaded');
+        }
+
+        // Play animation
+        function playAnimation(animationName) {
+            const action = animationCache[animationName];
+            if (!action) {
+                console.warn(`Animation not found: ${animationName}`);
+                return;
+            }
+            
+            // Stop current animation
+            if (currentAction) {
+                currentAction.fadeOut(0.3);
+            }
+            
+            // Start new animation
+            action.reset().fadeIn(0.3).play();
+            currentAction = action;
+            
+            // Update UI
+            document.querySelectorAll('[data-animation]').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            document.querySelector(`[data-animation="${animationName}"]`).classList.add('active');
+            
+            console.log(`🎭 Playing animation: ${animationName}`);
+        }
+
+        // Apply facial expression
+        function applyExpression(expressionName) {
+            const expression = facialExpressions[expressionName];
+            if (!expression || !currentModel) return;
+            
+            // Reset all morph targets
+            currentModel.traverse((child) => {
+                if (child.isMesh && child.morphTargetInfluences) {
+                    for (let i = 0; i < child.morphTargetInfluences.length; i++) {
+                        child.morphTargetInfluences[i] = 0;
+                    }
+                }
+            });
+            
+            // Apply new expression
+            currentModel.traverse((child) => {
+                if (child.isMesh && child.morphTargetDictionary) {
+                    Object.entries(expression).forEach(([targetName, value]) => {
+                        const index = child.morphTargetDictionary[targetName];
+                        if (index !== undefined && child.morphTargetInfluences) {
+                            child.morphTargetInfluences[index] = value;
+                        }
+                    });
+                }
+            });
+            
+            // Update UI
+            document.querySelectorAll('[data-expression]').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            document.querySelector(`[data-expression="${expressionName}"]`).classList.add('active');
+            
+            console.log(`😊 Applied expression: ${expressionName}`);
+        }
+
+        // Update loading progress
+        function updateLoadingProgress(message) {
+            document.getElementById('loadingProgress').textContent = message;
+        }
+
+        // Hide loading overlay
+        function hideLoadingOverlay() {
+            document.getElementById('loadingOverlay').style.display = 'none';
+        }
+
+        // Animation loop
+        function animate() {
+            const delta = clock.getDelta();
+            
+            // Update mixer
+            if (currentMixer) {
+                currentMixer.update(delta);
+            }
+            
+            // Update controls (only if not in XR)
+            if (!renderer.xr.isPresenting) {
+                controls.update();
+                
+                // Update performance stats
+                updatePerformanceStats();
+                
+                // Regular render
+                renderer.render(scene, camera);
+                
+                // Continue animation loop
+                requestAnimationFrame(animate);
+            }
+            // XR rendering is handled by renderer.setAnimationLoop
+        }
+
+        // Update performance statistics
+        function updatePerformanceStats() {
+            // Simple FPS calculation
+            const now = performance.now();
+            if (!updatePerformanceStats.lastTime) {
+                updatePerformanceStats.lastTime = now;
+                updatePerformanceStats.frames = 0;
+            }
+            
+            updatePerformanceStats.frames++;
+            
+            if (now - updatePerformanceStats.lastTime >= 1000) {
+                performanceStats.fps = Math.round(updatePerformanceStats.frames * 1000 / (now - updatePerformanceStats.lastTime));
+                updatePerformanceStats.frames = 0;
+                updatePerformanceStats.lastTime = now;
+                
+                // Count triangles
+                let triangles = 0;
+                scene.traverse((child) => {
+                    if (child.isMesh && child.geometry) {
+                        if (child.geometry.index) {
+                            triangles += child.geometry.index.count / 3;
+                        } else {
+                            triangles += child.geometry.attributes.position.count / 3;
+                        }
+                    }
+                });
+                performanceStats.triangles = Math.round(triangles);
+                
+                // Update display
+                document.getElementById('performanceStats').textContent = 
+                    `FPS: ${performanceStats.fps} | Triangles: ${performanceStats.triangles.toLocaleString()}`;
+            }
+        }
+
+        // Handle window resize
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        // Event listeners
+        function setupEventListeners() {
+            // Animation controls
+            document.querySelectorAll('[data-animation]').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    playAnimation(e.target.dataset.animation);
+                });
+            });
+            
+            // Expression controls
+            document.querySelectorAll('[data-expression]').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    applyExpression(e.target.dataset.expression);
+                });
+            });
+            
+            // Environment controls
+            document.querySelectorAll('[data-env]').forEach(option => {
+                option.addEventListener('click', (e) => {
+                    document.querySelectorAll('.env-option').forEach(opt => opt.classList.remove('active'));
+                    e.currentTarget.classList.add('active');
+                    setEnvironment(e.currentTarget.dataset.env);
+                });
+            });
+            
+            // Looking Glass activation
+            document.getElementById('lgActivateBtn').addEventListener('click', async () => {
+                try {
+                    if (xrSession) {
+                        // End current session
+                        console.log('🔚 Ending Looking Glass session...');
+                        await xrSession.end();
+                        xrSession = null;
+                        document.getElementById('lgActivateBtn').textContent = '🚀 Enter Looking Glass';
+                        updateLookingGlassStatus(true, 'Ready - Click to activate');
+                        console.log('✅ Looking Glass session ended');
+                        
+                        // Return to normal render loop
+                        renderer.setAnimationLoop(null);
+                        animate();
+                    } else {
+                        // Start new session
+                        console.log('🚀 Starting Looking Glass session...');
+                        updateLookingGlassStatus(true, 'Connecting...');
+                        document.getElementById('lgActivateBtn').textContent = '⏳ Connecting...';
+                        
+                        // Check if WebXR is available
+                        if (!navigator.xr) {
+                            throw new Error('WebXR API not available. Looking Glass polyfill may have failed to load.');
+                        }
+                        
+                        console.log('📱 Requesting immersive-vr session...');
+                        xrSession = await navigator.xr.requestSession('immersive-vr');
+                        console.log('✅ Session created successfully!');
+                        
+                        // Set up session event handlers
+                        xrSession.addEventListener('end', () => {
+                            console.log('📤 Session ended event received');
+                            xrSession = null;
+                            document.getElementById('lgActivateBtn').textContent = '🚀 Enter Looking Glass';
+                            updateLookingGlassStatus(true, 'Ready - Click to activate');
+                            
+                            // Return to normal render loop
+                            renderer.setAnimationLoop(null);
+                            animate();
+                        });
+                        
+                        // Start the session if it has a start method
+                        if (xrSession.start && typeof xrSession.start === 'function') {
+                            console.log('▶️ Starting session...');
+                            xrSession.start();
+                        }
+                        
+                        // Set up renderer for XR
+                        console.log('🖥️ Setting up XR renderer...');
+                        renderer.xr.setSession(xrSession);
+                        
+                        // Update UI
+                        document.getElementById('lgActivateBtn').textContent = '🔚 Exit Looking Glass';
+                        updateLookingGlassStatus(true, 'Active - Model on Looking Glass!');
+                        console.log('🎉 Looking Glass session active!');
+                        
+                        // Start XR render loop
+                        renderer.setAnimationLoop(animate);
+                        
+                        // Show success message
+                        console.log('🌟 Your model should now be visible on the Looking Glass device!');
+                    }
+                } catch (error) {
+                    console.error('❌ Failed to start Looking Glass session:', error);
+                    updateLookingGlassStatus(false, 'Ready to try');
+                    document.getElementById('lgActivateBtn').textContent = '🚀 Enter Looking Glass';
+                    
+                    // Provide helpful error message based on error type
+                    let helpMessage = '';
+                    if (error.message.includes('WebXR')) {
+                        helpMessage = `WebXR Issue: ${error.message}
+
+The Looking Glass integration uses WebXR technology. This might work anyway - try these steps:
+
+1. Make sure you're using Chrome or Edge browser
+2. Enable WebXR experimental features in chrome://flags
+3. Install Looking Glass Bridge from: https://lookingglassfactory.com/software-downloads
+4. Connect your Looking Glass Go device
+
+Alternative: You can still enjoy the 3D model in this viewer with all animations!`;
+                    } else {
+                        helpMessage = `Connection Error: ${error.message}
+
+Troubleshooting steps:
+1. Install Looking Glass Bridge: https://lookingglassfactory.com/software-downloads
+2. Make sure your Looking Glass Go is connected (USB + HDMI)
+3. Try refreshing this page
+4. Use Chrome or Edge browser for best compatibility
+
+Your 3D model works perfectly in this viewer regardless!`;
+                    }
+                    
+                    alert(helpMessage);
+                }
+            });
+            
+            // Window resize
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        // Initialize everything
+        async function init() {
+            console.log('🚀 Initializing Looking Glass 3D Viewer...');
+            
+            initScene();
+            setupEventListeners();
+            await initLookingGlass();
+            
+            await loadModel();
+            
+            hideLoadingOverlay();
+            animate();
+            
+            console.log('✅ Viewer fully initialized');
+        }
+
+        // Start the application
+        init().catch(error => {
+            console.error('Failed to initialize:', error);
+            updateLoadingProgress('Failed to initialize. Please refresh the page.');
+        });
+    </script>
+</body>
+</html>
