@@ -1,6 +1,6 @@
 import { useRef, useCallback, useEffect } from "react";
 import { useAudioSpeakingContext } from "./useAudioSpeakingContext";
-import { azureTTS, azureStreamingTTS, VisemeData } from "../lib/azureTTS";
+import { azureTTS, VisemeData } from "../lib/azureTTS";
 import { AzureTTSBufferManager } from "../lib/azureTTSBufferManager";
 
 // Audio constants
@@ -16,7 +16,7 @@ export const useAzureTTS = (
   setIsAvatarSessionActive?: (active: boolean) => void,
   onAudioChunkFinished?: (duration: number) => void,
   onAudioStartPlaying?: () => void,
-  onViseme?: (viseme: VisemeData) => void
+  onDirectViseme?: (visemeId: number, offset: number) => void  // 🎯 STREAMLINED signature
 ) => {
   const { canSpeakRef, isInterruptedRef, registerStopSpeaking, resetInterruptionState } = useAudioSpeakingContext();
   const audioBufferManagerRef = useRef<AzureTTSBufferManager | null>(null);
@@ -29,7 +29,14 @@ export const useAzureTTS = (
   const isWelcomeMessageRef = useRef<boolean>(false);
   const onAudioChunkFinishedRef = useRef<((duration: number) => void) | null>(null);
   const onAudioStartPlayingRef = useRef<(() => void) | null>(null);
-  const onVisemeRef = useRef<((viseme: VisemeData) => void) | null>(null);
+  const onVisemeRef = useRef<((visemeId: number, offset: number) => void) | null>(null);
+
+  // Update refs when callbacks change
+  useEffect(() => {
+    onAudioChunkFinishedRef.current = onAudioChunkFinished || null;
+    onAudioStartPlayingRef.current = onAudioStartPlaying || null;
+    onVisemeRef.current = onDirectViseme || null;
+  }, [onAudioChunkFinished, onAudioStartPlaying, onDirectViseme]);
 
   // Initialize audio buffer manager
   const initAudioBufferManager = useCallback(() => {
@@ -92,22 +99,15 @@ export const useAzureTTS = (
         });
       }
       
-      // Set up viseme callback for lip sync
-      if (onViseme) {
-        audioBufferManagerRef.current.setOnViseme((viseme: VisemeData) => {
-          console.log('[AzureTTS] Viseme triggered:', viseme.visemeId);
-          if (onVisemeRef.current) {
-            onVisemeRef.current(viseme);
-          }
-        });
-      }
+      // 🎯 STREAMLINED: Direct visemes from Speech SDK - no buffer manager visemes needed
+      // (Speech SDK provides visemes directly in real-time, OpenAI TTS fallback has no visemes)
     } else {
       console.log('[AzureTTS] Resetting existing AzureTTSBufferManager');
       console.log('[AzureTTS] Buffer manager state before reset:', audioBufferManagerRef.current.getBufferStatus());
       audioBufferManagerRef.current.reset();
       console.log('[AzureTTS] Buffer manager state after reset:', audioBufferManagerRef.current.getBufferStatus());
     }
-  }, [onAudioChunkFinished, setIsAvatarTalking, setIsAvatarSessionActive, onAudioStartPlaying, onViseme]);
+  }, [onAudioChunkFinished, setIsAvatarTalking, setIsAvatarSessionActive, onAudioStartPlaying, onDirectViseme]);
 
   // Main TTS function using Azure REST API
   const speakText = useCallback(async (text: string, isWelcome: boolean = false, isSequential: boolean = false): Promise<void> => {
@@ -158,41 +158,132 @@ export const useAzureTTS = (
 
         console.log('[AzureTTS] 🎵 Speaking sentence:', text.substring(0, 50) + '...', 'isWelcome:', isWelcome, 'isSequential:', isSequential);
         
-        // Call the Azure TTS API to get audio data and visemes
-        const response = await azureTTS(text);
+        // Check if real-time Azure visemes are available
+        const speechKey = process.env.NEXT_PUBLIC_AZURE_SPEECH_KEY;
+        const speechRegion = process.env.NEXT_PUBLIC_AZURE_SPEECH_REGION;
         
-        if (!response || !response.audio) {
-          console.error('[AzureTTS] Failed to get audio data from Azure TTS API');
-          if (setIsAvatarTalking) setIsAvatarTalking(false);
-          if (setIsAvatarSessionActive) setIsAvatarSessionActive(false);
-          reject(new Error('Failed to get audio data from Azure TTS API'));
-          return;
-        }
-
-        console.log('[AzureTTS] Received audio data, size:', response.audio.length, 'bytes');
-        console.log('[AzureTTS] Received visemes:', response.visemes.length);
-
-        // Add the complete audio to the buffer manager
-        if (audioBufferManagerRef.current) {
-          console.log('[AzureTTS] Adding audio and visemes to buffer manager');
-          console.log('[AzureTTS] Visemes to process:', response.visemes.length);
+        if (speechKey && speechRegion) {
+          console.log('[AzureTTS] 🔥 Using Azure Speech SDK with genuine real-time visemes!');
           
-          // Store the resolve function for this promise
-          (audioBufferManagerRef.current as any).currentResolve = resolve;
+          // Import the Speech SDK function (ONLY approach we use)
+          const { azureSpeechSDKTTS } = await import('../lib/azureTTS');
           
-          // Ensure AudioContext is ready before adding audio
-          const isReady = await audioBufferManagerRef.current.ensureAudioContextReady();
-          if (isReady) {
-            await audioBufferManagerRef.current.addCompleteAudio(response.audio, response.visemes, isSequential);
-          } else {
-            console.error('[AzureTTS] Failed to initialize AudioContext - cannot play audio');
+          // Use real-time Azure TTS with genuine viseme events
+          const audioChunks: Uint8Array[] = [];
+          let isFirstChunk = true;
+          
+          try {
+            await azureSpeechSDKTTS(
+              text,
+              // onAudioChunk
+              (audioData: Uint8Array, isFirst: boolean) => {
+                console.log('[AzureTTS] Speech SDK audio received:', audioData.length, 'bytes');
+                audioChunks.push(audioData);
+                
+                if (audioBufferManagerRef.current && isFirst) {
+                  // Clear any previous audio and start fresh
+                  audioBufferManagerRef.current.forceClear();
+                  // Store the resolve function
+                  (audioBufferManagerRef.current as any).currentResolve = resolve;
+                }
+              },
+              // 🎯 STREAMLINED: Direct viseme callback - no wrapper objects!
+              onVisemeRef.current ? (visemeId: number, offset: number) => {
+                console.log('[AzureTTS] 🚀 Direct viseme from Speech SDK:', visemeId, 'at', offset + 'ms');
+                if (onVisemeRef.current) {
+                  // Pass directly to VRMAvatar - no intermediate objects!
+                  onVisemeRef.current(visemeId, offset);
+                }
+              } : undefined,
+              // onComplete
+              async () => {
+                console.log('[AzureTTS] Speech SDK TTS completed, processing', audioChunks.length, 'audio chunks');
+                
+                if (audioChunks.length > 0 && audioBufferManagerRef.current) {
+                  // Combine all audio chunks (though Speech SDK typically returns one complete chunk)
+                  const totalLength = audioChunks.reduce((sum, chunk) => sum + chunk.length, 0);
+                  const combinedAudio = new Uint8Array(totalLength);
+                  let offset = 0;
+                  
+                  for (const chunk of audioChunks) {
+                    combinedAudio.set(chunk, offset);
+                    offset += chunk.length;
+                  }
+                  
+                  console.log('[AzureTTS] Combined audio size:', combinedAudio.length, 'bytes');
+                  
+                  // Ensure AudioContext is ready before adding audio
+                  const isReady = await audioBufferManagerRef.current.ensureAudioContextReady();
+                  if (isReady) {
+                    // No visemes needed here - they're handled in real-time above
+                    await audioBufferManagerRef.current.addCompleteAudio(combinedAudio, [], isSequential);
+                  } else {
+                    console.error('[AzureTTS] Failed to initialize AudioContext');
+                    if (setIsAvatarTalking) setIsAvatarTalking(false);
+                    if (setIsAvatarSessionActive) setIsAvatarSessionActive(false);
+                    reject(new Error('Failed to initialize AudioContext'));
+                  }
+                } else {
+                  console.error('[AzureTTS] No audio chunks received');
+                  if (setIsAvatarTalking) setIsAvatarTalking(false);
+                  if (setIsAvatarSessionActive) setIsAvatarSessionActive(false);
+                  reject(new Error('No audio chunks received'));
+                }
+              },
+              // onError
+              (error: string) => {
+                console.error('[AzureTTS] Real-time TTS error:', error);
+                if (setIsAvatarTalking) setIsAvatarTalking(false);
+                if (setIsAvatarSessionActive) setIsAvatarSessionActive(false);
+                reject(new Error(error));
+              }
+            );
+            
+          } catch (error) {
+            console.error('[AzureTTS] Speech SDK TTS failed:', error);
             if (setIsAvatarTalking) setIsAvatarTalking(false);
             if (setIsAvatarSessionActive) setIsAvatarSessionActive(false);
-            reject(new Error('Failed to initialize AudioContext'));
+            reject(error);
           }
+          
         } else {
-          console.error('[AzureTTS] Audio buffer manager is null!');
-          reject(new Error('Audio buffer manager is null'));
+          console.log('[AzureTTS] 📱 Using fallback TTS with synthetic visemes');
+          
+          // Call the Azure TTS API to get audio data and synthetic visemes
+          const response = await azureTTS(text);
+          
+          if (!response || !response.audio) {
+            console.error('[AzureTTS] Failed to get audio data from Azure TTS API');
+            if (setIsAvatarTalking) setIsAvatarTalking(false);
+            if (setIsAvatarSessionActive) setIsAvatarSessionActive(false);
+            reject(new Error('Failed to get audio data from Azure TTS API'));
+            return;
+          }
+
+          console.log('[AzureTTS] Received audio data, size:', response.audio.length, 'bytes');
+          console.log('[AzureTTS] Received synthetic visemes:', response.visemes.length);
+
+          // Add the complete audio to the buffer manager
+          if (audioBufferManagerRef.current) {
+            console.log('[AzureTTS] Adding audio and synthetic visemes to buffer manager');
+            
+            // Store the resolve function for this promise
+            (audioBufferManagerRef.current as any).currentResolve = resolve;
+            
+            // Ensure AudioContext is ready before adding audio
+            const isReady = await audioBufferManagerRef.current.ensureAudioContextReady();
+            if (isReady) {
+              await audioBufferManagerRef.current.addCompleteAudio(response.audio, response.visemes, isSequential);
+            } else {
+              console.error('[AzureTTS] Failed to initialize AudioContext - cannot play audio');
+              if (setIsAvatarTalking) setIsAvatarTalking(false);
+              if (setIsAvatarSessionActive) setIsAvatarSessionActive(false);
+              reject(new Error('Failed to initialize AudioContext'));
+            }
+          } else {
+            console.error('[AzureTTS] Audio buffer manager is null!');
+            reject(new Error('Audio buffer manager is null'));
+          }
         }
 
       } catch (error) {
@@ -208,8 +299,8 @@ export const useAzureTTS = (
   useEffect(() => {
     onAudioChunkFinishedRef.current = onAudioChunkFinished ?? null;
     onAudioStartPlayingRef.current = onAudioStartPlaying ?? null;
-    onVisemeRef.current = onViseme ?? null;
-  }, [onAudioChunkFinished, onAudioStartPlaying, onViseme]);
+    onVisemeRef.current = onDirectViseme ?? null;
+  }, [onAudioChunkFinished, onAudioStartPlaying, onDirectViseme]);
 
   // Stop speaking function
   const stopSpeaking = useCallback((forceStop: boolean = false) => {
@@ -331,19 +422,19 @@ export const useStreamingAzureTTS = (
   setIsAvatarTalking?: (talking: boolean) => void,
   setIsAvatarSessionActive?: (active: boolean) => void,
   onAudioChunkFinished?: (duration: number) => void,
-  onViseme?: (viseme: VisemeData) => void
+  onDirectViseme?: (visemeId: number, offset: number) => void  // 🎯 STREAMLINED signature
 ) => {
   const { canSpeakRef, isInterruptedRef, registerStopSpeaking, resetInterruptionState } = useAudioSpeakingContext();
   const audioBufferManagerRef = useRef<AzureTTSBufferManager | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const isWelcomeMessageRef = useRef<boolean>(false);
   const onAudioChunkFinishedRef = useRef<((duration: number) => void) | null>(null);
-  const onVisemeRef = useRef<((viseme: VisemeData) => void) | null>(null);
+  const onVisemeRef = useRef<((visemeId: number, offset: number) => void) | null>(null);
 
   useEffect(() => { 
     onAudioChunkFinishedRef.current = onAudioChunkFinished ?? null; 
-    onVisemeRef.current = onViseme ?? null;
-  }, [onAudioChunkFinished, onViseme]);
+    onVisemeRef.current = onDirectViseme ?? null;
+  }, [onAudioChunkFinished, onDirectViseme]);
 
   // Initialize audio buffer manager
   const initAudioBufferManager = useCallback(() => {
@@ -387,79 +478,15 @@ export const useStreamingAzureTTS = (
         });
       }
       
-      // Set up viseme callback
-      if (onViseme) {
-        audioBufferManagerRef.current.setOnViseme((viseme: VisemeData) => {
-          console.log('[AzureStreamingTTS] Viseme triggered:', viseme.visemeId);
-          if (onVisemeRef.current) {
-            onVisemeRef.current(viseme);
-          }
-        });
-      }
+      // 🎯 STREAMLINED: Direct visemes from Speech SDK - no buffer manager visemes needed  
+      // (Speech SDK provides visemes directly in real-time, OpenAI TTS fallback has no visemes)
     } else {
       console.log('[AzureStreamingTTS] Resetting existing AzureTTSBufferManager');
       audioBufferManagerRef.current.reset();
     }
-  }, [onAudioChunkFinished, setIsAvatarTalking, setIsAvatarSessionActive, onViseme]);
+  }, [onAudioChunkFinished, setIsAvatarTalking, setIsAvatarSessionActive, onDirectViseme]);
 
-  // Main streaming TTS function
-  const speakTextStreaming = useCallback(async (text: string, isWelcome: boolean = false) => {
-    // CRITICAL FIX: Reset interruption state for new TTS requests
-    console.log('[AzureStreamingTTS] 🔄 Resetting interruption state for new streaming TTS request');
-    resetInterruptionState();
-    
-    initAudioBufferManager();
-    
-    // Reset the audio buffer manager if it's in a stopped state (like Deepgram version)
-    if (audioBufferManagerRef.current) {
-      const bufferStatus = audioBufferManagerRef.current.getBufferStatus();
-      if (bufferStatus.isStopped) {
-        console.log('[AzureStreamingTTS] Buffer manager is stopped, resetting for new message');
-        audioBufferManagerRef.current.reset();
-      }
-      // Force clear any remaining audio from previous session
-      if (bufferStatus.queueLength > 0 || bufferStatus.totalBytes > 0) {
-        console.log('[AzureStreamingTTS] Clearing remaining audio from previous session');
-        audioBufferManagerRef.current.forceClear();
-        await new Promise(resolve => setTimeout(resolve, 100));
-      }
-    }
-    if (!text.trim() || !canSpeakRef.current || isInterruptedRef.current) {
-      console.log('[AzureStreamingTTS] ❌ Streaming TTS request blocked - text:', !!text.trim(), 'canSpeak:', canSpeakRef.current, 'notInterrupted:', !isInterruptedRef.current);
-      return;
-    }
-    try {
-      isWelcomeMessageRef.current = isWelcome;
-      if (setIsAvatarTalking) setIsAvatarTalking(true);
-      if (!isWelcome && setIsAvatarSessionActive) setIsAvatarSessionActive(true);
-      // Abort previous fetch if any
-      if (abortControllerRef.current) abortControllerRef.current.abort();
-      const abortController = new AbortController();
-      abortControllerRef.current = abortController;
-      await azureStreamingTTS(
-        text,
-        async (audioData: Uint8Array, isFirstChunk: boolean) => {
-          if (audioBufferManagerRef.current) {
-            // Ensure AudioContext is ready before adding streaming chunk
-            const isReady = await audioBufferManagerRef.current.ensureAudioContextReady();
-            if (isReady) {
-              audioBufferManagerRef.current.addStreamingChunk(audioData, isFirstChunk);
-            }
-          }
-        },
-        undefined, // onViseme - handled by buffer manager
-        () => {}, // onComplete
-        (error: string) => {
-          if (setIsAvatarTalking) setIsAvatarTalking(false);
-          if (setIsAvatarSessionActive) setIsAvatarSessionActive(false);
-        },
-        abortController.signal
-      );
-    } catch (error) {
-      if (setIsAvatarTalking) setIsAvatarTalking(false);
-      if (setIsAvatarSessionActive) setIsAvatarSessionActive(false);
-    }
-  }, [initAudioBufferManager, setIsAvatarTalking, setIsAvatarSessionActive, resetInterruptionState]);
+
 
   // Stop speaking function
   const stopSpeaking = useCallback((forceStop: boolean = false) => {
@@ -497,7 +524,7 @@ export const useStreamingAzureTTS = (
     return () => { window.removeEventListener('forceStopAudio', handleForceStopAudio); };
   }, [setIsAvatarTalking, setIsAvatarSessionActive]);
 
-  return { speakTextStreaming, stopSpeaking };
+  return { stopSpeaking };
 };
 
 // Keep the old hook name for backward compatibility, but redirect to Azure TTS

@@ -16,8 +16,10 @@ export function AudioChatWithAvatar() {
   const [isInitializing, setIsInitializing] = useState(false);
   const [selectedModel, setSelectedModel] = useState('/static/assets/6891a06aece5d61d2d726697.glb');
   const [showStartButton, setShowStartButton] = useState(true);
+  const [lookingGlassEnabled, setLookingGlassEnabled] = useState(false);
   const welcomeMessageRef = useRef<string | null>(null);
   const hasSentWelcomeRef = useRef(false);
+  const lookingGlassWindowRef = useRef<Window | null>(null);
   
   // Use refs to track current state for the callback
   const isWelcomeSpeakingRef = useRef(false);
@@ -53,6 +55,65 @@ export function AudioChatWithAvatar() {
       isAvatarTalkingRef.current = isAvatarTalking;
     }
   }, [isAvatarTalking, context]);
+
+  // Mirror speaking state to Looking Glass when it changes
+  useEffect(() => {
+    if (context) {
+      mirrorToLookingGlass('speaking', { isSpeaking: isAvatarTalking });
+    }
+  }, [isAvatarTalking, context]);
+
+  // Handle Looking Glass window
+  const handleEnableLookingGlass = () => {
+    if (!lookingGlassEnabled) {
+      console.log('[AudioChatWithAvatar] Opening Looking Glass viewer...');
+      const lookingGlassWindow = window.open(
+        '/looking-glass-viewer.html',
+        'lookingGlassViewer',
+        'width=1200,height=800,resizable=yes,scrollbars=yes'
+      );
+      
+      if (lookingGlassWindow) {
+        lookingGlassWindowRef.current = lookingGlassWindow;
+        setLookingGlassEnabled(true);
+        
+        // Listen for when the window is closed
+        const checkClosed = setInterval(() => {
+          if (lookingGlassWindow.closed) {
+            console.log('[AudioChatWithAvatar] Looking Glass viewer closed');
+            lookingGlassWindowRef.current = null;
+            setLookingGlassEnabled(false);
+            clearInterval(checkClosed);
+          }
+        }, 1000);
+        
+        console.log('[AudioChatWithAvatar] ✅ Looking Glass viewer opened');
+      }
+    } else {
+      // Close the Looking Glass window
+      if (lookingGlassWindowRef.current) {
+        lookingGlassWindowRef.current.close();
+        lookingGlassWindowRef.current = null;
+        setLookingGlassEnabled(false);
+        console.log('[AudioChatWithAvatar] Looking Glass viewer closed');
+      }
+    }
+  };
+
+  // Mirror animations to Looking Glass
+  const mirrorToLookingGlass = (type: string, data: any) => {
+    if (lookingGlassWindowRef.current && !lookingGlassWindowRef.current.closed) {
+      try {
+        lookingGlassWindowRef.current.postMessage({
+          type: 'MIRROR_ANIMATION',
+          animationType: type,
+          data: data
+        }, '*');
+      } catch (error) {
+        console.warn('[AudioChatWithAvatar] Failed to mirror to Looking Glass:', error);
+      }
+    }
+  };
 
   // Handle start call button click
   const handleStartCall = async () => {
@@ -263,13 +324,43 @@ export function AudioChatWithAvatar() {
               </div>
             </div>
           ) : (
-            <div className="w-full h-full">
+            <div className="w-full h-full relative">
               {/* VRM Avatar Display */}
               <VRMAvatar 
                 modelUrl={selectedModel}
                 width={800}
                 height={600}
+                onVisemeMirror={(viseme) => {
+                  // Mirror viseme to Looking Glass
+                  mirrorToLookingGlass('viseme', viseme);
+                }}
               />
+              
+              {/* Looking Glass Control Button */}
+              <div className="absolute top-4 right-4 flex flex-col gap-2">
+                <button
+                  onClick={handleEnableLookingGlass}
+                  className={`px-4 py-2 rounded-lg font-semibold text-sm transition-all duration-200 shadow-lg ${
+                    lookingGlassEnabled 
+                      ? 'bg-green-600 hover:bg-green-700 text-white' 
+                      : 'bg-purple-600 hover:bg-purple-700 text-white'
+                  }`}
+                  disabled={shouldDisableButtons}
+                >
+                  <div className="flex items-center space-x-2">
+                    <span>{lookingGlassEnabled ? '🔮' : '🔮'}</span>
+                    <span>
+                      {lookingGlassEnabled ? 'Close Looking Glass' : 'Enable Looking Glass'}
+                    </span>
+                  </div>
+                </button>
+                
+                {lookingGlassEnabled && (
+                  <div className="bg-green-100 border border-green-400 text-green-700 px-3 py-1 rounded text-xs text-center">
+                    ✅ Syncing to Looking Glass
+                  </div>
+                )}
+              </div>
               
               {/* Avatar Model Selector */}
               {/* <div className="absolute top-4 right-4 bg-white bg-opacity-90 rounded-lg p-2">

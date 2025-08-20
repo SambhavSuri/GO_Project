@@ -30,6 +30,35 @@ export const useAudioVoiceChat = () => {
   // Add refs for robust stop command detection during avatar speech
   const stopCommandBufferRef = useRef<string>("");
   const stopCommandTimerRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Connection health monitoring for tab switching
+  const connectionHealthRef = useRef<{
+    lastKeepAlive: number;
+    consecutiveFailures: number;
+  }>({
+    lastKeepAlive: Date.now(),
+    consecutiveFailures: 0
+  });
+  
+  // Function to check if connection is healthy
+  const isConnectionHealthy = useCallback(() => {
+    if (!connectionRef.current || !isDeepgramConnected) {
+      return false;
+    }
+    
+    // Check if it's been too long since last successful keep-alive
+    const timeSinceLastKeepAlive = Date.now() - connectionHealthRef.current.lastKeepAlive;
+    const maxAllowedDelay = 30000; // 30 seconds
+    
+    if (timeSinceLastKeepAlive > maxAllowedDelay) {
+      console.log(`[AudioVoiceChat] Connection might be stale - ${timeSinceLastKeepAlive}ms since last keep-alive`);
+      return false;
+    }
+    
+    return true;
+  }, [isDeepgramConnected]);
+  
+
 
   // Track when stop button is pressed (same logic as video bot)
   useEffect(() => {
@@ -300,7 +329,13 @@ export const useAudioVoiceChat = () => {
           (window as any).__intensiveOperation = false;
           console.log('🔄 [CONNECTION OPEN] Reset all failure counters');
           
-          // Set up keep-alive ping every 3 seconds to maintain connection
+          // Initialize connection health
+          connectionHealthRef.current = {
+            lastKeepAlive: Date.now(),
+            consecutiveFailures: 0
+          };
+          
+          // Set up tab-aware keep-alive ping every 5 seconds to maintain connection
           keepAliveTimerRef.current = setInterval(() => {
             if (connectionRef.current) {
               try {
@@ -310,7 +345,17 @@ export const useAudioVoiceChat = () => {
                   return;
                 }
                 
+                // Only send keep-alive if tab is visible to avoid browser throttling
+                if (document.visibilityState !== 'visible') {
+                  console.log('🔄 [KEEP-ALIVE] Skipping - tab not visible');
+                  return;
+                }
+                
                 connectionRef.current.keepAlive();
+                
+                // Update connection health on successful keep-alive
+                connectionHealthRef.current.lastKeepAlive = Date.now();
+                connectionHealthRef.current.consecutiveFailures = 0;
                 
                 // Reset failure counter on successful keep-alive
                 if ((window as any).__keepAliveFailures > 0) {
@@ -319,6 +364,9 @@ export const useAudioVoiceChat = () => {
                 }
               } catch (error) {
                 console.error('⚠️ [KEEP-ALIVE ERROR] Error sending keep-alive ping:', error);
+                
+                // Update connection health on failure
+                connectionHealthRef.current.consecutiveFailures++;
                 
                 // Don't immediately close connection on keep-alive error - could be temporary
                 // Only close if we have multiple consecutive failures
@@ -329,15 +377,16 @@ export const useAudioVoiceChat = () => {
                 console.log(`[KEEP-ALIVE] Failure count: ${keepAliveFailures}/3`);
                 
                 if (keepAliveFailures >= 3) {
-                  console.error('❌ [KEEP-ALIVE] Multiple failures - closing connection');
+                  console.error('❌ [KEEP-ALIVE] Multiple failures - connection will be recreated on tab focus');
                   setIsDeepgramConnected(false);
                   (window as any).__keepAliveFailures = 0; // Reset counter
+                  // Don't close connection here - let visibility change handler handle reconnection
                 } else {
                   console.log('🔄 [KEEP-ALIVE] Temporary failure - keeping connection open');
                 }
               }
             }
-          }, 3000);
+          }, 5000); // Increased to 5 seconds for better browser compatibility
         });
 
         connectionRef.current.on(LiveTranscriptionEvents.Close, () => {
@@ -571,6 +620,38 @@ export const useAudioVoiceChat = () => {
     }
   }, [fetchRagResponse, cleanup, handleSilence, isVoiceChatActive, isMuted]);
 
+  // Function to force reconnect Deepgram connection
+  const forceReconnectDeepgram = useCallback(() => {
+    console.log('[AudioVoiceChat] Force reconnecting Deepgram connection');
+    
+    // Close existing connection
+    if (connectionRef.current) {
+      try {
+        connectionRef.current.finish();
+      } catch (error) {
+        console.log('[AudioVoiceChat] Error closing existing connection:', error);
+      }
+      connectionRef.current = null;
+    }
+    
+    // Clear timers
+    if (keepAliveTimerRef.current) {
+      clearInterval(keepAliveTimerRef.current);
+      keepAliveTimerRef.current = null;
+    }
+    
+    // Reset state
+    setIsDeepgramConnected(false);
+    
+    // Reconnect if voice chat is active
+    if (isVoiceChatActive && !isMuted) {
+      console.log('[AudioVoiceChat] Reconnecting Deepgram for active voice chat');
+      setTimeout(() => {
+        setupDeepgram();
+      }, 1000); // Small delay to ensure cleanup completes
+    }
+  }, [isVoiceChatActive, isMuted, setupDeepgram]);
+
   const startVoiceChat = useCallback(async () => {
     console.log('[AudioVoiceChat] Starting voice chat...');
     cleanup();
@@ -711,21 +792,87 @@ export const useAudioVoiceChat = () => {
   // Note: Cleanup is handled by AudioProvider to avoid redundant calls
   // The AudioProvider will handle cleanup when the component unmounts or when the page is hidden
 
-  // Add cleanup handlers for application close and page visibility changes
+    // Add cleanup handlers for application close and page visibility changes
   useEffect(() => {
     let isPageClosing = false;
     
     const handleBeforeUnload = () => {
       console.log('[AudioVoiceChat] Page closing - cleaning up voice chat');
       isPageClosing = true;
-    cleanup();
+      cleanup();
     };
 
     const handleVisibilityChange = () => {
+      console.log('[AudioVoiceChat] Page visibility changed to:', document.visibilityState);
+      
       if (document.visibilityState === 'hidden') {
-        console.log('[AudioVoiceChat] Page hidden - cleaning up voice chat');
-        isPageClosing = true;
-    cleanup();
+        console.log('[AudioVoiceChat] Page hidden - pausing keep-alive but keeping connection open');
+        // Don't cleanup completely, just pause keep-alive to be less aggressive
+        if (keepAliveTimerRef.current) {
+          clearInterval(keepAliveTimerRef.current);
+          keepAliveTimerRef.current = null;
+          console.log('[AudioVoiceChat] Keep-alive paused for background tab');
+        }
+      } else if (document.visibilityState === 'visible') {
+        console.log('[AudioVoiceChat] Page visible - resuming Deepgram connection');
+        
+        // Check if Deepgram connection is still alive when returning to tab
+        const isConnectionAlive = isConnectionHealthy();
+        
+        if (!isConnectionAlive) {
+          console.log('[AudioVoiceChat] Deepgram connection lost during tab switch - force reconnecting');
+          forceReconnectDeepgram();
+        } else {
+          console.log('[AudioVoiceChat] Deepgram connection still alive - resuming keep-alive');
+          // Resume keep-alive if connection is still good
+          if (connectionRef.current && !keepAliveTimerRef.current) {
+            keepAliveTimerRef.current = setInterval(() => {
+              if (connectionRef.current) {
+                try {
+                  // Only send keep-alive if tab is visible
+                  if (document.visibilityState === 'visible' && !(window as any).__intensiveOperation) {
+                    connectionRef.current.keepAlive();
+                    
+                    // Update connection health on successful keep-alive
+                    connectionHealthRef.current.lastKeepAlive = Date.now();
+                    connectionHealthRef.current.consecutiveFailures = 0;
+                    
+                    // Reset failure counter on successful keep-alive
+                    if ((window as any).__keepAliveFailures > 0) {
+                      console.log('✅ [KEEP-ALIVE] Success - resetting failure counter');
+                      (window as any).__keepAliveFailures = 0;
+                    }
+                  }
+                } catch (error) {
+                  console.error('⚠️ [KEEP-ALIVE ERROR] Error sending keep-alive ping:', error);
+                  
+                  // Update connection health on failure
+                  connectionHealthRef.current.consecutiveFailures++;
+                  
+                  let keepAliveFailures = (window as any).__keepAliveFailures || 0;
+                  keepAliveFailures++;
+                  (window as any).__keepAliveFailures = keepAliveFailures;
+                  
+                  console.log(`[KEEP-ALIVE] Failure count: ${keepAliveFailures}/3`);
+                  
+                  if (keepAliveFailures >= 3) {
+                    console.error('❌ [KEEP-ALIVE] Multiple failures - will reconnect on next tab focus');
+                    setIsDeepgramConnected(false);
+                    (window as any).__keepAliveFailures = 0;
+                    if (connectionRef.current) {
+                      try {
+                        connectionRef.current.finish();
+                      } catch (e) {
+                        console.log('[AudioVoiceChat] Error finishing failed connection:', e);
+                      }
+                      connectionRef.current = null;
+                    }
+                  }
+                }
+              }
+            }, 5000); // Increase interval to 5 seconds for better tab switching compatibility
+          }
+        }
       }
     };
     
@@ -816,5 +963,6 @@ export const useAudioVoiceChat = () => {
     showStartTalkingPrompt,
     hasProcessedFinalTranscript,
     isDeepgramConnected,
+    forceReconnectDeepgram,
   };
 }; 

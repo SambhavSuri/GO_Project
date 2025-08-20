@@ -69,8 +69,8 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   // Callback for triggering GLB speaking animation when audio actually starts
   const onGLBAudioStartRef = useRef<(() => void) | null>(null);
 
-  // Callback for viseme events from Azure TTS
-  const onVisemeRef = useRef<((viseme: VisemeData) => void) | null>(null);
+  // 🎯 STREAMLINED: Direct viseme callback - no wrapper objects
+  const onVisemeRef = useRef<((visemeId: number, offset: number) => void) | null>(null);
 
   // Get TTS functions - this will work now because we're not in a circular dependency
   const ttsFunctions = useDeepgramTTS(
@@ -96,14 +96,15 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         onGLBAudioStartRef.current();
       }
     },
-    (viseme: VisemeData) => {
-      console.log('[AudioProvider] Viseme event received:', viseme.visemeId, 'at offset:', viseme.offset, 'duration:', viseme.duration);
-      // Call the viseme callback if it exists
+    // 🎯 STREAMLINED: Direct viseme forwarding - no object creation
+    (visemeId: number, offset: number) => {
+      console.log('[AudioProvider] 🚀 Direct viseme received:', visemeId, 'at offset:', offset + 'ms');
+      // Call the direct viseme callback if it exists
       if (onVisemeRef.current) {
-        console.log('[AudioProvider] Passing viseme to avatar:', viseme.visemeId);
-        onVisemeRef.current(viseme);
+        console.log('[AudioProvider] 🎯 Passing direct viseme to avatar:', visemeId);
+        onVisemeRef.current(visemeId, offset);
       } else {
-        console.log('[AudioProvider] No viseme callback registered');
+        console.log('[AudioProvider] No direct viseme callback registered');
       }
     }
   );
@@ -284,8 +285,8 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       onGLBAudioStartRef.current = callback;
     },
     
-    // Viseme callback for lip sync animation
-    onViseme: (callback: (viseme: VisemeData) => void) => {
+    // 🎯 STREAMLINED: Direct viseme callback for immediate lip sync
+    onViseme: (callback: (visemeId: number, offset: number) => void) => {
       onVisemeRef.current = callback;
     },
     

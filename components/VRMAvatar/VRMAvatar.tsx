@@ -1,20 +1,31 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
 import { VRM, VRMLoaderPlugin, VRMUtils } from '@pixiv/three-vrm';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 import { useAudioContext } from '../../logic/AudioProvider';
+import { 
+  ALL_READY_PLAYER_ME_VISEMES,
+  getVisemeIntensity,
+  getVisemeIntensityByName,
+  getVisemeTransitionSpeed,
+  convertAzureVisemeToReadyPlayerMe,
+  logVisemeMapping 
+} from '../../lib/visemeMapper';
+import LipSyncDebugger from '../../lib/lipSyncDebugger';
 
 interface VRMAvatarProps {
   modelUrl?: string;
   width?: number;
   height?: number;
+  onVisemeMirror?: (viseme: any) => void;
 }
 
 export const VRMAvatar: React.FC<VRMAvatarProps> = ({ 
   modelUrl = '/static/assets/6891a06aece5d61d2d726697.glb',
   width = 800,
-  height = 600 
+  height = 600,
+  onVisemeMirror
 }) => {
   const mountRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
@@ -38,116 +49,53 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
   const speakingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const mouthStateRef = useRef<'open' | 'closed'>('closed');
   const lastMouthChangeTimeRef = useRef<number>(0);
-  const visemeMappingRef = useRef<Record<string, string>>({});
   
   // Animation clips refs
   const idleClipRef = useRef<THREE.AnimationClip | null>(null);
   const talkingClipRef = useRef<THREE.AnimationClip | null>(null);
   const thinkingClipRef = useRef<THREE.AnimationClip | null>(null);
 
-  // Initialize viseme mapping for GLB speaking animation
-  const initializeVisemeMapping = () => {
-    visemeMappingRef.current = {
-      A: "viseme_aa",    // Open mouth sound
-      B: "viseme_PP",    // Bilabial sounds (B, P, M)
-      C: "viseme_I",     // Close front vowel
-      D: "viseme_DD",    // Dental/alveolar sounds (D, T, N, L)
-      E: "viseme_E",     // Mid front vowel
-      F: "viseme_U",     // Close back vowel (OO sound)
-      G: "viseme_FF",    // Labiodental sounds (F, V)
-      H: "viseme_TH",    // Dental fricative (TH)
-      X: "viseme_sil",   // Silence
-      SIL: "viseme_sil", // Silence
-      CH: "viseme_CH",   // Palato-alveolar sounds (CH, SH)
-      SS: "viseme_SS",   // Sibilant sounds (S, Z)
-      NN: "viseme_nn",   // Nasal sounds
-      RR: "viseme_RR",   // R sounds
-      KK: "viseme_kk",   // Velar sounds (K, G)
-      O: "viseme_O"      // Open back vowel
-    };
-  };
+  // Track previous viseme for smoother transitions
+  const previousVisemeRef = useRef<string>("viseme_sil");
+  const activeVisemesRef = useRef<Map<string, number>>(new Map());
+  
+  // Lip sync debugger
+  const debuggerRef = useRef<LipSyncDebugger | null>(null);
 
-  // Azure TTS Viseme ID to morph target mapping (Microsoft Speech SDK standard)
-  const azureVisemeToMorphTarget = (visemeId: number): string => {
-    const visemeMap: { [key: number]: string } = {
-      0: "viseme_sil",    // Silence
-      1: "viseme_aa",     // Open vowel (aa as in 'father')
-      2: "viseme_E",      // Open front vowel (ae as in 'cat')  
-      3: "viseme_aa",     // Open central vowel (ah as in 'father')
-      4: "viseme_O",      // Open back vowel (ao as in 'thought')
-      5: "viseme_aa",     // Diphthong (aw as in 'cow')
-      6: "viseme_I",      // Diphthong (ay as in 'hide')
-      7: "viseme_U",      // Close back vowel (b, p, m)
-      8: "viseme_CH",     // Palato-alveolar (ch as in 'church')
-      9: "viseme_DD",     // Dental/alveolar (d, t, n, l)
-      10: "viseme_TH",    // Dental fricative (dh as in 'the')
-      11: "viseme_E",     // Mid front vowel (eh as in 'bed')
-      12: "viseme_RR",    // R-colored vowel (er as in 'bird')
-      13: "viseme_E",     // Mid front vowel (ey as in 'face')
-      14: "viseme_FF",    // Labiodental (f, v)
-      15: "viseme_kk",    // Velar (g as in 'go')
-      16: "viseme_TH",    // Dental fricative (hh as in 'house')
-      17: "viseme_I",     // Close front vowel (ih as in 'bit')
-      18: "viseme_I",     // Close front vowel (iy as in 'eat')
-      19: "viseme_CH",    // Palato-alveolar (jh as in 'judge')
-      20: "viseme_kk",    // Velar (k as in 'cat')
-      21: "viseme_DD",    // Alveolar lateral (l as in 'lid')
-      22: "viseme_PP",    // Bilabial (m as in 'mat')
-      23: "viseme_nn",    // Alveolar nasal (n as in 'no')
-      24: "viseme_kk",    // Velar nasal (ng as in 'sing')
-      25: "viseme_O",     // Mid back vowel (ow as in 'boat')
-      26: "viseme_O",     // Diphthong (oy as in 'toy')
-      27: "viseme_PP",    // Bilabial (p as in 'put')
-      28: "viseme_RR",    // Alveolar approximant (r as in 'red')
-      29: "viseme_SS",    // Alveolar fricative (s as in 'sit')
-      30: "viseme_CH",    // Palato-alveolar (sh as in 'she')
-      31: "viseme_DD",    // Alveolar (t as in 'talk')
-      32: "viseme_TH",    // Dental fricative (th as in 'think')
-      33: "viseme_U",     // Close back vowel (uh as in 'book')
-      34: "viseme_U",     // Close back vowel (uw as in 'too')
-      35: "viseme_FF",    // Labiodental (v as in 'vat')
-      36: "viseme_U",     // Labio-velar (w as in 'with')
-      37: "viseme_I",     // Palatal (y as in 'yard')
-      38: "viseme_SS",    // Alveolar fricative (z as in 'zap')
-      39: "viseme_CH",    // Palato-alveolar (zh as in 'measure')
-    };
-    
-    return visemeMap[visemeId] || "viseme_sil";
-  };
-
-  // Handle Azure TTS viseme events with precise timing
-  const handleAzureViseme = (viseme: { visemeId: number; offset: number; duration: number }) => {
+  // 🎯 ENHANCED: Direct viseme application with professional smooth factors
+  const handleDirectViseme = useCallback((visemeId: number, offset: number) => {
     if (modelType !== 'glb' || !modelRef.current) return;
     
-    console.log(`👄 Azure Viseme ${viseme.visemeId} -> ${azureVisemeToMorphTarget(viseme.visemeId)} (${viseme.duration}ms)`);
+    // 🗺️ STEP 1: Azure ID → Ready Player Me enhanced viseme data
+    const visemeData = { visemeId, offset, duration: 100 };
+    const readyPlayerMeViseme = convertAzureVisemeToReadyPlayerMe(visemeData, previousVisemeRef.current);
     
-    // Reset all visemes first for clean transitions
-    const allVisemes = [
-      'viseme_sil', 'viseme_aa', 'viseme_E', 'viseme_I', 'viseme_O', 'viseme_U', 
-      'viseme_PP', 'viseme_DD', 'viseme_FF', 'viseme_TH', 'viseme_CH', 'viseme_SS', 
-      'viseme_nn', 'viseme_RR', 'viseme_kk'
-    ];
+    console.log(`🎯 Enhanced: Azure ${visemeId} → ${readyPlayerMeViseme.visemeName} (intensity: ${readyPlayerMeViseme.intensity}, smooth: ${readyPlayerMeViseme.smoothFactor})`);
     
-    allVisemes.forEach(viseme => {
-      lerpMorphTarget(viseme, 0.0, 0.3);
+    // Mirror to Looking Glass if callback provided  
+    if (onVisemeMirror) {
+      onVisemeMirror({ visemeId, offset });
+    }
+    
+    // 🚀 STEP 2: Smart conflict resolution - reset only conflicting mouth shapes
+    const conflictingVisemes = getConflictingVisemes(readyPlayerMeViseme.visemeName);
+    conflictingVisemes.forEach(conflictViseme => {
+      if (conflictViseme !== readyPlayerMeViseme.visemeName) {
+        setMorphTargetSmooth(conflictViseme, 0.0, readyPlayerMeViseme.smoothFactor);
+        activeVisemesRef.current.delete(conflictViseme);
+      }
     });
     
-    // Apply the specific viseme with appropriate strength
-    const targetMorph = azureVisemeToMorphTarget(viseme.visemeId);
-    const strength = viseme.visemeId === 0 ? 0.2 : 1.0; // Silence gets lower strength
+    // 💥 STEP 3: Apply viseme with enhanced smooth transitions!
+    setMorphTargetSmooth(readyPlayerMeViseme.visemeName, readyPlayerMeViseme.intensity, readyPlayerMeViseme.smoothFactor);
+    activeVisemesRef.current.set(readyPlayerMeViseme.visemeName, readyPlayerMeViseme.intensity);
     
-    lerpMorphTarget(targetMorph, strength, 0.2);
-    
-    // Schedule reset after viseme duration
-    setTimeout(() => {
-      if (!speakingIntervalRef.current) { // Only reset if not in manual speaking mode
-        lerpMorphTarget(targetMorph, 0.0, 0.3);
-      }
-    }, viseme.duration);
-  };
+    // Update previous viseme for smooth transitions
+    previousVisemeRef.current = readyPlayerMeViseme.visemeName;
+  }, [modelType, onVisemeMirror]);
 
-  // Lerp morph target to a specific value
-  const lerpMorphTarget = (targetName: string, value: number, speed: number = 0.1) => {
+  // OPTIMIZED: Direct morph target assignment for real-time visemes (no lerping delays)
+  const setMorphTargetDirect = (targetName: string, value: number) => {
     if (!modelRef.current || modelType !== 'glb') {
       return;
     }
@@ -156,18 +104,109 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
       if ((child as any).isSkinnedMesh && (child as any).morphTargetDictionary) {
         const skinnedMesh = child as THREE.SkinnedMesh;
         const index = skinnedMesh.morphTargetDictionary[targetName];
-        if (index === undefined || !skinnedMesh.morphTargetInfluences || skinnedMesh.morphTargetInfluences[index] === undefined) {
+        
+        if (index !== undefined && skinnedMesh.morphTargetInfluences) {
+          const oldValue = skinnedMesh.morphTargetInfluences[index];
+          skinnedMesh.morphTargetInfluences[index] = value; // Direct assignment for real-time
+          
+          // Debug significant changes
+          if (Math.abs(value - oldValue) > 0.1) {
+            console.log(`[VRMAvatar] 👄 Direct Applied '${targetName}': ${oldValue.toFixed(2)} → ${value.toFixed(2)}`);
+          }
+        }
+      }
+    });
+  };
+
+  // 🎯 ENHANCED: Smooth morph target transitions with professional smoothFactor
+  const setMorphTargetSmooth = (targetName: string, targetValue: number, smoothFactor: number) => {
+    if (!modelRef.current || modelType !== 'glb') {
+      return;
+    }
+    
+    modelRef.current.traverse((child) => {
+      if ((child as any).isSkinnedMesh && (child as any).morphTargetDictionary) {
+        const skinnedMesh = child as THREE.SkinnedMesh;
+        const index = skinnedMesh.morphTargetDictionary[targetName];
+        
+        if (index !== undefined && skinnedMesh.morphTargetInfluences) {
+          const currentValue = skinnedMesh.morphTargetInfluences[index];
+          
+          // 🚀 ENHANCED: Use professional smoothFactor for natural transitions
+          const newValue = currentValue + (targetValue - currentValue) * smoothFactor;
+          skinnedMesh.morphTargetInfluences[index] = newValue;
+          
+          // Debug significant changes
+          if (Math.abs(newValue - currentValue) > 0.05) {
+            console.log(`[VRMAvatar] 🎯 Smooth Applied '${targetName}': ${currentValue.toFixed(2)} → ${newValue.toFixed(2)} (smooth: ${smoothFactor})`);
+          }
+        }
+      }
+    });
+  };
+
+  // OPTIMIZED: Get conflicting visemes to avoid mouth shape conflicts
+  const getConflictingVisemes = (visemeName: string): string[] => {
+    // Define mouth shape groups that conflict with each other
+    const mouthGroups = {
+      vowels: ['viseme_aa', 'viseme_E', 'viseme_I', 'viseme_O', 'viseme_U'],
+      consonants: ['viseme_PP', 'viseme_FF', 'viseme_TH', 'viseme_DD', 'viseme_kk', 'viseme_CH', 'viseme_SS', 'viseme_nn', 'viseme_RR'],
+      neutral: ['viseme_sil']
+    };
+    
+    // Find which group the current viseme belongs to
+    for (const [groupName, group] of Object.entries(mouthGroups)) {
+      if (group.includes(visemeName)) {
+        return group; // Return all visemes in the same group as conflicting
+      }
+    }
+    
+    // If not found in any group, only conflict with self
+    return [visemeName];
+  };
+
+  // Lerp morph target to a specific value with enhanced debugging (for non-real-time usage)
+  const lerpMorphTarget = (targetName: string, value: number, speed: number = 0.1) => {
+    if (!modelRef.current || modelType !== 'glb') {
+      console.warn('[VRMAvatar] lerpMorphTarget: No model or not GLB format');
+      return;
+    }
+    
+    let found = false;
+    modelRef.current.traverse((child) => {
+      if ((child as any).isSkinnedMesh && (child as any).morphTargetDictionary) {
+        const skinnedMesh = child as THREE.SkinnedMesh;
+        const index = skinnedMesh.morphTargetDictionary[targetName];
+        
+        if (index === undefined) {
+          // Don't spam logs, but log missing morph targets occasionally
+          if (Math.random() < 0.1) { // 10% chance to log
+            console.warn(`[VRMAvatar] Morph target '${targetName}' not found. Available targets:`, Object.keys(skinnedMesh.morphTargetDictionary));
+          }
+          return;
+        }
+        
+        if (!skinnedMesh.morphTargetInfluences || skinnedMesh.morphTargetInfluences[index] === undefined) {
+          console.warn(`[VRMAvatar] Morph target influences not available for '${targetName}'`);
           return;
         }
         
         // Smoothly interpolate to the target value
-        skinnedMesh.morphTargetInfluences[index] = THREE.MathUtils.lerp(
-          skinnedMesh.morphTargetInfluences[index],
-          value,
-          speed
-        );
+        const oldValue = skinnedMesh.morphTargetInfluences[index];
+        skinnedMesh.morphTargetInfluences[index] = THREE.MathUtils.lerp(oldValue, value, speed);
+        
+        // Debug significant changes
+        if (Math.abs(value - oldValue) > 0.1) {
+          console.log(`[VRMAvatar] 👄 Applied '${targetName}': ${oldValue.toFixed(2)} → ${value.toFixed(2)} (speed: ${speed})`);
+        }
+        
+        found = true;
       }
     });
+    
+    if (!found && Math.random() < 0.05) { // 5% chance to log when not found
+      console.warn(`[VRMAvatar] No skinned mesh with morph targets found for '${targetName}'`);
+    }
   };
 
   // Speaking animation for GLB models
@@ -178,27 +217,29 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
     const mouthOpenTime = 150 + Math.random() * 250; // 150-400ms - longer for more visible movement
     const mouthCloseTime = 80 + Math.random() * 120; // 80-200ms - longer pause for better contrast
     
-    // Handle realistic mouth movements using visemes for speaking animation
+    // Handle realistic mouth movements using Ready Player Me visemes for speaking animation
     if (mouthStateRef.current === 'closed' && currentTime - lastMouthChangeTimeRef.current >= mouthCloseTime) {
-      // Reset all visemes first
-      ['viseme_sil', 'viseme_aa', 'viseme_E', 'viseme_I', 'viseme_O', 'viseme_U', 'viseme_PP'].forEach(viseme => {
+      // Reset all Ready Player Me visemes first
+      ALL_READY_PLAYER_ME_VISEMES.forEach(viseme => {
         lerpMorphTarget(viseme, 0.0, 0.1);
       });
       
-      // REALISTIC LIP MOVEMENT with proper mouth gap - focus on lips, not teeth
+      // REALISTIC LIP MOVEMENT with proper mouth gap using Ready Player Me visemes
       const lipMovementVisemes = [
-        { viseme: 'viseme_aa', strength: 1.2, desc: 'Wide lip separation' },
-        { viseme: 'viseme_E', strength: 1.0, desc: 'Mid lip position' },
-        { viseme: 'viseme_O', strength: 1.1, desc: 'Round lip pucker' },
-        { viseme: 'viseme_I', strength: 0.9, desc: 'Narrow lip spread' },
-        { viseme: 'viseme_U', strength: 1.0, desc: 'Lip forward projection' },
-        { viseme: 'viseme_PP', strength: 1.1, desc: 'Lip closure/release' },
+        { viseme: 'viseme_aa', strength: getVisemeIntensityByName('viseme_aa'), desc: 'Wide lip separation' },
+        { viseme: 'viseme_E', strength: getVisemeIntensityByName('viseme_E'), desc: 'Mid lip position' },
+        { viseme: 'viseme_O', strength: getVisemeIntensityByName('viseme_O'), desc: 'Round lip pucker' },
+        { viseme: 'viseme_I', strength: getVisemeIntensityByName('viseme_I'), desc: 'Narrow lip spread' },
+        { viseme: 'viseme_U', strength: getVisemeIntensityByName('viseme_U'), desc: 'Lip forward projection' },
+        { viseme: 'viseme_PP', strength: getVisemeIntensityByName('viseme_PP'), desc: 'Lip closure/release' },
       ];
       
       const randomLipMovement = lipMovementVisemes[Math.floor(Math.random() * lipMovementVisemes.length)];
+      const transitionSpeed = getVisemeTransitionSpeed(previousVisemeRef.current, randomLipMovement.viseme);
       
-      // Apply the chosen lip movement with enhanced strength for visibility
-      lerpMorphTarget(randomLipMovement.viseme, randomLipMovement.strength, 0.3);
+      // Apply the chosen lip movement with scientifically calculated intensity
+      lerpMorphTarget(randomLipMovement.viseme, randomLipMovement.strength, transitionSpeed);
+      previousVisemeRef.current = randomLipMovement.viseme;
       
       //console.log(`👄 LIP MOVEMENT: ${randomLipMovement.viseme} (${randomLipMovement.desc}) at ${randomLipMovement.strength} strength`);
       
@@ -207,14 +248,19 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
     } else if (mouthStateRef.current === 'open' && currentTime - lastMouthChangeTimeRef.current >= mouthOpenTime) {
       // Close mouth - use silence viseme
       // Reset all speaking visemes for natural lip closure
-      ['viseme_aa', 'viseme_E', 'viseme_I', 'viseme_O', 'viseme_U', 'viseme_PP'].forEach(viseme => {
-        lerpMorphTarget(viseme, 0.0, 0.2);
+      ALL_READY_PLAYER_ME_VISEMES.forEach(viseme => {
+        if (viseme !== 'viseme_sil') {
+          lerpMorphTarget(viseme, 0.0, 0.2);
+        }
       });
       
-      // Apply natural lip closure with slight gap
-      lerpMorphTarget('viseme_sil', 0.4, 0.3);  // More neutral closure with better contrast
+      // Apply natural lip closure with Ready Player Me silence viseme
+      const silenceIntensity = getVisemeIntensityByName('viseme_sil');
+      const transitionSpeed = getVisemeTransitionSpeed(previousVisemeRef.current, 'viseme_sil');
+      lerpMorphTarget('viseme_sil', silenceIntensity, transitionSpeed);
+      previousVisemeRef.current = 'viseme_sil';
       
-      //console.log(`🤐 LIPS CLOSED: Natural lip position with slight gap`);
+      //console.log(`🤐 LIPS CLOSED: Natural lip position with Ready Player Me silence viseme`);
       
       mouthStateRef.current = 'closed';
       lastMouthChangeTimeRef.current = currentTime;
@@ -225,12 +271,12 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
   const startSpeakingAnimation = () => {
     if (modelType !== 'glb' || speakingIntervalRef.current) return;
     
-    console.log('🎤 Starting GLB speaking animation (triggered by audio playback)');
-    initializeVisemeMapping();
+    console.log('🎤 Starting GLB speaking animation with Ready Player Me visemes (triggered by audio playback)');
     
-    // Reset mouth state
+    // Reset mouth state and previous viseme tracking
     mouthStateRef.current = 'closed';
     lastMouthChangeTimeRef.current = Date.now();
+    previousVisemeRef.current = 'viseme_sil';
     
     // Start speaking animation loop
     speakingIntervalRef.current = setInterval(updateSpeakingAnimation, 50); // 20 FPS
@@ -248,14 +294,22 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
     sealLipsForIdle();
   };
 
-  // Seal lips completely for idle animation
+  // Seal lips completely for idle animation using Ready Player Me visemes
   const sealLipsForIdle = () => {
     if (modelType === 'glb' && modelRef.current) {
-      // Reset ALL visemes to 0 for completely sealed lips
-      ['viseme_aa', 'viseme_E', 'viseme_I', 'viseme_O', 'viseme_U', 'viseme_PP', 'viseme_sil', 'viseme_DD', 'viseme_FF', 'viseme_TH', 'viseme_CH', 'viseme_SS', 'viseme_nn', 'viseme_RR', 'viseme_kk'].forEach(viseme => {
-        lerpMorphTarget(viseme, 0.0, 0.4);
+      // OPTIMIZED: Use direct assignment for instant mouth closure
+      activeVisemesRef.current.forEach((value, visemeName) => {
+        setMorphTargetDirect(visemeName, 0.0);
       });
-      console.log('🔒 Lips completely sealed for idle state - all visemes reset to 0');
+      activeVisemesRef.current.clear();
+      
+      // Also reset any remaining visemes that might not be tracked
+      ALL_READY_PLAYER_ME_VISEMES.forEach(viseme => {
+        setMorphTargetDirect(viseme, 0.0);
+      });
+      
+      previousVisemeRef.current = 'viseme_sil';
+      console.log('🔒 Lips completely sealed for idle state - all Ready Player Me visemes reset to 0');
     }
   };
 
@@ -677,6 +731,20 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
           // Ensure lips are sealed on initial load
           setTimeout(() => sealLipsForIdle(), 500);
           
+          // Initialize lip sync debugger
+          debuggerRef.current = new LipSyncDebugger(model);
+          const report = debuggerRef.current.generateReport();
+          console.log(report);
+          
+          // Check viseme availability
+          const visemeCheck = debuggerRef.current.checkReadyPlayerMeVisemes();
+          if (visemeCheck.missing.length > 0) {
+            console.warn('[VRMAvatar] ⚠️ Missing Ready Player Me visemes. Lip sync may be imperfect.');
+            console.warn('[VRMAvatar] Missing visemes:', visemeCheck.missing);
+          } else {
+            console.log('[VRMAvatar] ✅ All Ready Player Me visemes found on model');
+          }
+          
           setIsLoading(false);
           console.log('✅ GLB model loaded successfully');
         },
@@ -773,19 +841,20 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
     }
   }, [onGLBAudioStart, modelType]);
 
-  // Register Azure TTS viseme callback with audio context
+  // 🎯 STREAMLINED: Register direct viseme callback for immediate application  
   useEffect(() => {
     if (onViseme && modelType === 'glb') {
-      console.log('🎯 Registering Azure TTS viseme callback for GLB model');
+      console.log('🚀 Registering DIRECT viseme callback for GLB model');
       
-      onViseme(handleAzureViseme);
+      // Pass the streamlined direct handler
+      onViseme(handleDirectViseme);
       
       return () => {
         // Clean up callback
         onViseme(() => {});
       };
     }
-  }, [onViseme, modelType]);
+  }, [onViseme, modelType, handleDirectViseme]);
   
   // Sync animations with audio state
   useEffect(() => {
@@ -833,6 +902,8 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, [width, height]);
+
+
   
   return (
     <div className="vrm-avatar-container relative">
@@ -873,6 +944,8 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
           : (modelType === 'glb' ? 'Ready (Lips Sealed)' : 'Ready')
         }
       </div>
+
+
     </div>
   );
 };

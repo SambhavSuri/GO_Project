@@ -139,8 +139,9 @@ export class AzureTTSBufferManager {
     console.log('[AzureTTSBufferManager] addCompleteAudio called with data size:', audioData.length, 'bytes', 'allowSequential:', allowSequential);
     
     if (this.isStopped) {
-      console.log('[AzureTTSBufferManager] addCompleteAudio blocked - stopped');
-      return;
+      console.log('[AzureTTSBufferManager] addCompleteAudio was blocked - stopped, but resetting for new audio');
+      this.isStopped = false; // Reset stopped state for new audio
+      this.completionCalled = false; // Reset completion flag
     }
     
     if (!audioData || audioData.length === 0) {
