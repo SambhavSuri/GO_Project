@@ -21,6 +21,7 @@ export function AudioChat() {
   const isWelcomeSpeakingRef = useRef(false);
   const hasWelcomedRef = useRef(false);
   const isAvatarTalkingRef = useRef(false);
+  const stopSpeakingRef = useRef<((force?: boolean) => void) | null>(null);
   
   // Get context values with proper initialization check
   const context = useAudioContext();
@@ -50,6 +51,7 @@ export function AudioChat() {
   useEffect(() => {
     if (context) {
       isAvatarTalkingRef.current = isAvatarTalking;
+      stopSpeakingRef.current = context.stopSpeaking;
     }
   }, [isAvatarTalking, context]);
 
@@ -202,8 +204,8 @@ export function AudioChat() {
         speechSynthesis.cancel();
       }
       // Force stop any Deepgram audio
-      if (context?.stopSpeaking) {
-        context.stopSpeaking(true);
+      if (stopSpeakingRef.current) {
+        stopSpeakingRef.current(true);
       }
     };
     
@@ -246,7 +248,7 @@ export function AudioChat() {
         // Don't force stop during normal unmount to allow welcome message to work
       }
     };
-  }, [context]);
+  }, []); // FIXED: Removed context dependency to prevent constant remounts
 
   // Determine if buttons should be disabled
   // Buttons are disabled during initialization, welcome speaking, or regular avatar talking

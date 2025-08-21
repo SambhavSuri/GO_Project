@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useRef, useEffect, useMemo, useCallback } from "react";
 // import { useStreamingAvatarContext } from "./context";
 import { useDeepgramTTS } from "./useAudioTTS";
+import { useStreamingTTSWithChunking } from "./useStreamingTTSWithChunking";
 import { VisemeData } from "../lib/azureTTS";
 // import { useAudioSpeakingContext } from "./useAudioSpeakingContext";
 
@@ -72,7 +73,10 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   // 🎯 STREAMLINED: Direct viseme callback - no wrapper objects
   const onVisemeRef = useRef<((visemeId: number, offset: number) => void) | null>(null);
 
-  // Get TTS functions - this will work now because we're not in a circular dependency
+  // Flag to enable streaming TTS with chunking (can be toggled for testing)
+  const useStreamingChunkedTTS = useRef(true);  // Set to true to use new approach
+  
+  // Get TTS functions - existing approach
   const ttsFunctions = useDeepgramTTS(
     (talking: boolean) => {
       console.log('[AudioProvider] setIsAvatarTalking called with:', talking, 'at:', new Date().toISOString());
@@ -105,6 +109,22 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         onVisemeRef.current(visemeId, offset);
       } else {
         console.log('[AudioProvider] No direct viseme callback registered');
+      }
+    }
+  );
+  
+  // Get streaming TTS with chunking functions - new approach
+  const streamingTTSFunctions = useStreamingTTSWithChunking(
+    setIsAvatarTalking,
+    setIsAvatarSessionActive,
+    (duration: number) => {
+      if (onAudioChunkFinishedRef.current) {
+        onAudioChunkFinishedRef.current(duration);
+      }
+    },
+    () => {
+      if (onGLBAudioStartRef.current) {
+        onGLBAudioStartRef.current();
       }
     }
   );
@@ -188,7 +208,7 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   }, [currentAiResponse]); // Include currentAiResponse dependency
 
-  // Enhanced speakText function that prevents welcome message replay
+  // Enhanced speakText function that supports both TTS approaches
   const speakText = useCallback(async (text: string, isWelcome: boolean = false) => {
     if (isWelcome) {
       isWelcomeMessageRef.current = true;
@@ -200,8 +220,15 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       console.log('[AudioProvider] Speaking regular message (finalization handled by RAG)');
     }
     
+    // Use existing approach for now (can switch to streaming later)
     await ttsFunctions.speakText(text);
   }, [ttsFunctions]); // Include ttsFunctions dependency
+  
+  // New function for streaming text with chunking (for delay-less TTS)
+  const speakStreamingText = useCallback((text: string, onViseme?: (visemeId: number, offset: number) => void, isComplete?: boolean) => {
+    console.log('[AudioProvider] Speaking streaming text with chunking');
+    streamingTTSFunctions.speakStreamingText(text, onViseme || onVisemeRef.current || undefined, isComplete);
+  }, [streamingTTSFunctions]);
   
   // Function to clear current AI response (for new messages)
   const clearCurrentAiResponse = useCallback(() => {
@@ -273,7 +300,11 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     
     // TTS functions
     speakText,
-    stopSpeaking: ttsFunctions.stopSpeaking,
+    stopSpeaking: useStreamingChunkedTTS.current ? streamingTTSFunctions.stopSpeaking : ttsFunctions.stopSpeaking,
+    
+    // Streaming TTS with chunking (for delay-less TTS)
+    speakStreamingText,
+    isStreamingTTS: useStreamingChunkedTTS.current,
     
     // Audio chunk finished callback - stable function that doesn't change
     onAudioChunkFinished: (callback: (duration: number) => void) => {
@@ -319,7 +350,9 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     finalizeCurrentAiResponse,
     clearCurrentAiResponse,
     speakText,
+    speakStreamingText,
     ttsFunctions.stopSpeaking,
+    streamingTTSFunctions.stopSpeaking,
     initializeAudioContext
     // Note: onAudioChunkFinished is not in dependencies as it's a stable function
   ]);

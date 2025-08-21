@@ -26,6 +26,7 @@ export function AudioChatWithAvatar() {
   const isWelcomeSpeakingRef = useRef(false);
   const hasWelcomedRef = useRef(false);
   const isAvatarTalkingRef = useRef(false);
+  const stopSpeakingRef = useRef<((force?: boolean) => void) | null>(null);
   
   // Get context values with proper initialization check
   const context = useAudioContext();
@@ -54,6 +55,7 @@ export function AudioChatWithAvatar() {
   useEffect(() => {
     if (context) {
       isAvatarTalkingRef.current = isAvatarTalking;
+      stopSpeakingRef.current = context.stopSpeaking;
     }
   }, [isAvatarTalking, context]);
 
@@ -250,8 +252,8 @@ export function AudioChatWithAvatar() {
         speechSynthesis.cancel();
       }
       // Force stop any Deepgram audio
-      if (context?.stopSpeaking) {
-        context.stopSpeaking(true);
+      if (stopSpeakingRef.current) {
+        stopSpeakingRef.current(true);
       }
     };
     
@@ -291,7 +293,7 @@ export function AudioChatWithAvatar() {
         }
       }
     };
-  }, [context]);
+  }, []); // FIXED: Removed context dependency to prevent constant remounts
 
   // Determine if buttons should be disabled
   const shouldDisableButtons = isInitializing || isWelcomeSpeaking || isAvatarTalking;

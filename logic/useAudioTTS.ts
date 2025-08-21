@@ -60,16 +60,16 @@ export const useAzureTTS = (
           setIsAvatarTalking(false);
         }
         
-        // For welcome messages, also reset session state
-        // For regular messages, only reset if it's not a welcome message
+        // CONTINUOUS CONVERSATION FIX: Keep session active for regular messages
         if (isWelcomeMessageRef.current) {
-          console.log('[AzureTTS] Welcome message completed - resetting session state');
+          console.log('[AzureTTS] Welcome message completed - ending session');
           if (setIsAvatarSessionActive) {
             setIsAvatarSessionActive(false);
           }
         } else {
-          // For regular messages, let the TTS queue manager control session state
-          console.log('[AzureTTS] Regular message completed - keeping session active');
+          // For regular messages, keep session active for continuous conversation
+          console.log('[AzureTTS] Regular message completed - keeping session active for continuous conversation');
+          // Session stays active to allow continuous conversation without closing Deepgram connection
         }
         
         // Reset welcome message flag
@@ -357,10 +357,14 @@ export const useAzureTTS = (
       setIsAvatarTalking(false);
       console.log('[AzureTTS] isAvatarTalking set to false');
     }
-    if (setIsAvatarSessionActive) {
-      console.log('[AzureTTS] Setting isAvatarSessionActive to false');
+    // CONTINUOUS CONVERSATION FIX: Only end session on forced stop (interruption)
+    // This preserves session for continuous conversation while still allowing interruptions
+    if (setIsAvatarSessionActive && forceStop) {
+      console.log('[AzureTTS] Forced stop - setting isAvatarSessionActive to false');
       setIsAvatarSessionActive(false);
-      console.log('[AzureTTS] isAvatarSessionActive set to false');
+      console.log('[AzureTTS] isAvatarSessionActive set to false due to interruption');
+    } else if (setIsAvatarSessionActive) {
+      console.log('[AzureTTS] Normal stop - keeping isAvatarSessionActive true for continuous conversation');
     }
     
     console.log('[AzureTTS] stopSpeaking completed - all speech stopped');
@@ -466,9 +470,9 @@ export const useStreamingAzureTTS = (
               setIsAvatarSessionActive(false);
             }
           } else {
-            // For regular messages, let the TTS queue manager control session state
-            console.log('[AzureStreamingTTS] Regular message completed - keeping session active');
-          }
+                      // CONTINUOUS CONVERSATION FIX: Keep session active for regular messages  
+          console.log('[AzureStreamingTTS] Regular message completed - keeping session active for continuous conversation');
+        }
           
           // Reset welcome message flag
           isWelcomeMessageRef.current = false;
@@ -513,7 +517,13 @@ export const useStreamingAzureTTS = (
       else audioBufferManagerRef.current.stop();
     }
     if (setIsAvatarTalking) setIsAvatarTalking(false);
-    if (setIsAvatarSessionActive) setIsAvatarSessionActive(false);
+    // CONTINUOUS CONVERSATION FIX: Only end session on forced stop (interruption)
+    if (setIsAvatarSessionActive && forceStop) {
+      console.log('[AzureStreamingTTS] Forced stop - ending session due to interruption');
+      setIsAvatarSessionActive(false);
+    } else if (setIsAvatarSessionActive) {
+      console.log('[AzureStreamingTTS] Normal stop - keeping session active for continuous conversation');
+    }
   }, [setIsAvatarTalking, setIsAvatarSessionActive]);
 
   useEffect(() => { registerStopSpeaking(() => stopSpeaking(true)); }, [registerStopSpeaking, stopSpeaking]); // Force stop for interruptions

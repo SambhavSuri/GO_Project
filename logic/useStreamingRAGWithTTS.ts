@@ -1,7 +1,6 @@
 import { useCallback, useRef, useState } from 'react';
 import { useStreamingRAG } from './useStreamingRAG';
 import { useAudioContext } from './AudioProvider';
-import { SentenceDetector, TTSQueueManager } from '../lib/sentenceDetector';
 
 export interface UseStreamingRAGWithTTSReturn {
   sendMessage: (message: string, history?: any[]) => Promise<void>;
@@ -14,65 +13,19 @@ export interface UseStreamingRAGWithTTSReturn {
 
 export function useStreamingRAGWithTTS(): UseStreamingRAGWithTTSReturn {
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [fullResponseText, setFullResponseText] = useState('');
   
   // Get audio context functions
   const { 
-    speakText, 
-    stopSpeaking,
     appendToCurrentAiResponse,
     finalizeCurrentAiResponse,
     setIsProcessingResponse,
-    setIsAvatarTalking,
-    setIsAvatarSessionActive
+    speakStreamingText,
+    stopSpeaking,
+    onViseme
   } = useAudioContext();
   
-  // Create refs for sentence detector and TTS queue
-  const sentenceDetectorRef = useRef<SentenceDetector | null>(null);
-  const ttsQueueRef = useRef<TTSQueueManager | null>(null);
-  
-  // Initialize sentence detector and TTS queue
-  const initializeDetectors = useCallback(() => {
-    if (!sentenceDetectorRef.current) {
-      sentenceDetectorRef.current = new SentenceDetector();
-    }
-    
-    if (!ttsQueueRef.current) {
-      ttsQueueRef.current = new TTSQueueManager(
-        // TTS callback for each sentence
-        async (sentence: string) => {
-          console.log('[StreamingRAGWithTTS] 🎤 Starting TTS for sentence');
-          try {
-            await speakText(sentence, false, true); // false = not welcome message, true = sequential
-            console.log('[StreamingRAGWithTTS] ✅ TTS sentence completed');
-          } catch (error) {
-            console.error('[StreamingRAGWithTTS] ❌ TTS sentence failed:', error);
-          }
-        },
-        // Session start callback - start avatar animation
-        () => {
-          console.log('[StreamingRAGWithTTS] 🎬 TTS session started - enabling avatar animation');
-          setIsSpeaking(true);
-          if (setIsAvatarTalking) {
-            setIsAvatarTalking(true);
-          }
-          if (setIsAvatarSessionActive) {
-            setIsAvatarSessionActive(true);
-          }
-        },
-        // Session end callback - stop avatar animation
-        () => {
-          console.log('[StreamingRAGWithTTS] 🎬 TTS session ended - disabling avatar animation');
-          setIsSpeaking(false);
-          if (setIsAvatarTalking) {
-            setIsAvatarTalking(false);
-          }
-          if (setIsAvatarSessionActive) {
-            setIsAvatarSessionActive(false);
-          }
-        }
-      );
-    }
-  }, [speakText, setIsAvatarTalking, setIsAvatarSessionActive, setIsSpeaking]);
+  const isFirstChunkRef = useRef(true);
   
   // Handle RAG response chunks
   const handleResponseChunk = useCallback((chunk: string) => {
@@ -81,47 +34,51 @@ export function useStreamingRAGWithTTS(): UseStreamingRAGWithTTSReturn {
     // Append to current AI response in UI
     appendToCurrentAiResponse(chunk);
     
-    // Initialize detectors if needed
-    initializeDetectors();
-    
-    // Add chunk to sentence detector
-    const completeSentences = sentenceDetectorRef.current!.addChunk(chunk);
-    
-    // Queue complete sentences for TTS
-    completeSentences.forEach(sentence => {
-      console.log('[StreamingRAGWithTTS] Complete sentence detected:', sentence);
-      ttsQueueRef.current!.addToQueue(sentence);
+    // Accumulate the full response text
+    setFullResponseText(prev => {
+      const newText = prev + chunk;
+      
+      // Pass the accumulated text to the streaming TTS
+      // The TTS will handle chunking and only process new text
+      speakStreamingText(newText);
+      
+      return newText;
     });
-  }, [appendToCurrentAiResponse, initializeDetectors]);
+    
+    // Update speaking state
+    if (!isSpeaking) {
+      setIsSpeaking(true);
+    }
+  }, [appendToCurrentAiResponse, speakStreamingText, isSpeaking]);
   
   // Handle response completion
   const handleResponseComplete = useCallback((fullResponse: string) => {
     console.log('[StreamingRAGWithTTS] Response complete');
     
-    // Get any remaining text from sentence detector
-    const remaining = sentenceDetectorRef.current?.flush();
-    if (remaining) {
-      console.log('[StreamingRAGWithTTS] Flushing remaining text:', remaining);
-      ttsQueueRef.current?.addToQueue(remaining);
-    }
+    // Pass the final complete text with completion flag to flush remaining buffer
+    speakStreamingText(fullResponseText, undefined, true);
     
     // Finalize the response in the UI
     finalizeCurrentAiResponse();
     setIsProcessingResponse(false);
-  }, [finalizeCurrentAiResponse, setIsProcessingResponse]);
+    
+    // The speaking state will be handled by the TTS hook
+    // It will set to false when all chunks are done
+  }, [fullResponseText, speakStreamingText, finalizeCurrentAiResponse, setIsProcessingResponse]);
   
   // Handle errors
   const handleError = useCallback((error: string) => {
     console.error('[StreamingRAGWithTTS] Error:', error);
     
-    // Stop TTS queue
-    ttsQueueRef.current?.stop();
+    // Stop TTS
+    stopSpeaking();
     
-    // Reset detectors
-    sentenceDetectorRef.current?.reset();
+    // Reset text accumulator
+    setFullResponseText('');
     
     setIsProcessingResponse(false);
-  }, [setIsProcessingResponse]);
+    setIsSpeaking(false);
+  }, [stopSpeaking, setIsProcessingResponse]);
   
   // Use the streaming RAG hook with our handlers
   const {
@@ -140,19 +97,19 @@ export function useStreamingRAGWithTTS(): UseStreamingRAGWithTTSReturn {
   const sendMessage = useCallback(async (message: string, history?: any[]) => {
     console.log('[StreamingRAGWithTTS] Sending message:', message);
     
-    // Initialize detectors
-    initializeDetectors();
+    // Stop any previous TTS to ensure clean state for new message
+    stopSpeaking();
     
-    // Reset detectors for new message
-    sentenceDetectorRef.current!.reset();
-    ttsQueueRef.current!.reset();
+    // Reset state for new message
+    setFullResponseText('');
+    isFirstChunkRef.current = true;
     
     // Set processing state
     setIsProcessingResponse(true);
     
     // Send message to RAG
     await sendRAGMessage(message, history);
-  }, [sendRAGMessage, initializeDetectors, setIsProcessingResponse]);
+  }, [sendRAGMessage, setIsProcessingResponse, stopSpeaking]);
   
   // Enhanced stop function
   const stopStreaming = useCallback(() => {
@@ -163,10 +120,9 @@ export function useStreamingRAGWithTTS(): UseStreamingRAGWithTTSReturn {
     
     // Stop TTS
     stopSpeaking();
-    ttsQueueRef.current?.stop();
     
-    // Reset detectors
-    sentenceDetectorRef.current?.reset();
+    // Reset state
+    setFullResponseText('');
     
     setIsSpeaking(false);
     setIsProcessingResponse(false);
