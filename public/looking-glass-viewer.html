@@ -424,11 +424,11 @@
 
         // Animation paths
         const animationPaths = {
-            idle: '/public/static/animations/idleMale.glb',
-            talking: '/public/static/animations/Talking.glb',
-            thinking: '/public/static/animations/listenNod.glb', 
-            walking: '/public/static/animations/walkingLeftTurn.glb',
-            waving: '/public/static/animations/waving.glb'
+            idle: '/static/animations/idleMale.glb',
+            talking: '/static/animations/Talking.glb',
+            thinking: '/static/animations/listenNod.glb', 
+            walking: '/static/animations/walkingLeftTurn.glb',
+            waving: '/static/animations/waving.glb'
         };
 
         // Facial expressions for GLB models
@@ -632,10 +632,15 @@
         async function loadModel() {
             updateLoadingProgress('Loading main model...');
             
+            const modelPath = '/static/assets/6891a06aece5d61d2d726697.glb';
+            console.log(`🔮 [Looking Glass] Loading model from: ${modelPath}`);
+            
             const loader = new GLTFLoader();
             try {
-                const gltf = await loader.loadAsync('/public/static/assets/6891a06aece5d61d2d726697.glb');
+                const gltf = await loader.loadAsync(modelPath);
                 currentModel = gltf.scene;
+                
+                console.log(`🔮 [Looking Glass] ✅ Model loaded successfully:`, currentModel);
                 
                 // Scale and position the model
                 currentModel.scale.set(1, 1, 1);
@@ -647,13 +652,35 @@
                 currentModel.position.sub(center);
                 currentModel.position.y = 0;
                 
-                // Enable shadows
+                // Enable shadows and check for morph targets
+                let morphTargetMeshes = 0;
+                let totalMorphTargets = 0;
+                const availableVisemes = [];
+                
                 currentModel.traverse((child) => {
                     if (child.isMesh) {
                         child.castShadow = true;
                         child.receiveShadow = true;
+                        
+                        // Check for morph targets
+                        if (child.morphTargetDictionary && Object.keys(child.morphTargetDictionary).length > 0) {
+                            morphTargetMeshes++;
+                            totalMorphTargets += Object.keys(child.morphTargetDictionary).length;
+                            
+                            // Find viseme targets
+                            Object.keys(child.morphTargetDictionary).forEach(name => {
+                                if (name.includes('viseme_') && !availableVisemes.includes(name)) {
+                                    availableVisemes.push(name);
+                                }
+                            });
+                            
+                            console.log(`🔮 [Looking Glass] Found mesh ${child.name} with ${Object.keys(child.morphTargetDictionary).length} morph targets`);
+                        }
                     }
                 });
+                
+                console.log(`🔮 [Looking Glass] Morph target summary: ${morphTargetMeshes} meshes, ${totalMorphTargets} total targets`);
+                console.log(`🔮 [Looking Glass] Available visemes:`, availableVisemes.sort());
                 
                 scene.add(currentModel);
                 
@@ -1010,7 +1037,12 @@ Your 3D model works perfectly in this viewer regardless!`;
 
         // Apply viseme to the Looking Glass model
         function applyVisemeToModel(visemeData) {
-            if (!currentModel) return;
+            console.log(`🔮 [Looking Glass] applyVisemeToModel called:`, visemeData);
+            
+            if (!currentModel) {
+                console.error(`🔮 [Looking Glass] No model loaded for viseme application`);
+                return;
+            }
             
             // Convert Azure viseme ID to Ready Player Me viseme name (same mapping as main app)
             const visemeMapping = {
@@ -1019,16 +1051,23 @@ Your 3D model works perfectly in this viewer regardless!`;
                 2: "viseme_FF",    // f, v
                 3: "viseme_TH",    // th
                 4: "viseme_DD",    // d, t
-                5: "viseme_nn",    // n
-                6: "viseme_kk",    // k, g
-                7: "viseme_CH",    // ch, j, sh, zh
-                8: "viseme_SS",    // s, z
+                5: "viseme_kk",    // k, g
+                6: "viseme_CH",    // ch, j, sh, zh
+                7: "viseme_SS",    // s, z
+                8: "viseme_nn",    // n
                 9: "viseme_RR",    // r
                 10: "viseme_aa",   // aa
                 11: "viseme_E",    // eh
                 12: "viseme_I",    // ih, ee
                 13: "viseme_O",    // oh
-                14: "viseme_U"     // oo
+                14: "viseme_U",    // oo
+                15: "viseme_kk",   // k, g variant
+                16: "viseme_CH",   // ch variant
+                17: "viseme_SS",   // s variant
+                18: "viseme_RR",   // r variant
+                19: "viseme_nn",   // n variant
+                20: "viseme_PP",   // p, b, m variant
+                21: "viseme_sil"   // extended silence
             };
             
             const visemeName = visemeMapping[visemeData.visemeId] || "viseme_sil";
@@ -1054,39 +1093,61 @@ Your 3D model works perfectly in this viewer regardless!`;
 
         // Apply morph target to model
         function applyMorphTarget(targetName, value) {
-            if (!currentModel) return;
+            if (!currentModel) {
+                console.error(`🔮 [Looking Glass] applyMorphTarget: No model loaded`);
+                return;
+            }
+            
+            let appliedCount = 0;
+            let meshCount = 0;
             
             currentModel.traverse((child) => {
                 if (child.isMesh && child.morphTargetDictionary) {
+                    meshCount++;
                     const index = child.morphTargetDictionary[targetName];
                     if (index !== undefined && child.morphTargetInfluences) {
                         child.morphTargetInfluences[index] = value;
+                        appliedCount++;
+                        
+                        // Log significant changes for visemes
+                        if (targetName.includes('viseme_') && Math.abs(value) > 0.1) {
+                            console.log(`🔮 [Looking Glass] 👄 Applied: ${targetName}[${index}] = ${value.toFixed(3)}`);
+                        }
                     }
                 }
             });
+            
+            // Debug summary for visemes
+            if (targetName.includes('viseme_') && Math.abs(value) > 0.1) {
+                console.log(`🔮 [Looking Glass] VISEME SUMMARY: ${targetName} applied to ${appliedCount}/${meshCount} meshes`);
+                
+                if (appliedCount === 0) {
+                    console.warn(`🔮 [Looking Glass] VISEME NOT FOUND: ${targetName}`);
+                }
+            }
         }
 
-        // Get viseme intensity (same as main app)
+        // Get viseme intensity (same as main app - updated natural values)
         function getVisemeIntensity(visemeName) {
             const intensityMap = {
-                "viseme_sil": 0.0,    // Silence
-                "viseme_PP": 1.0,     // Bilabial
-                "viseme_FF": 0.8,     // Labiodental
-                "viseme_TH": 0.7,     // Dental
-                "viseme_DD": 0.9,     // Alveolar
-                "viseme_kk": 0.8,     // Velar
-                "viseme_CH": 0.9,     // Palato-alveolar
-                "viseme_SS": 0.7,     // Sibilant
-                "viseme_nn": 0.8,     // Nasal
-                "viseme_RR": 0.8,     // R-sound
-                "viseme_aa": 1.0,     // Open vowel
-                "viseme_E": 0.8,      // Mid vowel
-                "viseme_I": 0.6,      // Close vowel
-                "viseme_O": 0.9,      // Back vowel
-                "viseme_U": 0.8       // Close back vowel
+                "viseme_sil": 0.3,    // Silence - subtle closure
+                "viseme_PP": 0.5,     // P,B,M - natural
+                "viseme_FF": 0.4,     // F,V - natural
+                "viseme_TH": 0.35,    // TH - natural
+                "viseme_DD": 0.5,     // D,T - natural
+                "viseme_kk": 0.4,     // K,G - natural
+                "viseme_CH": 0.45,    // CH,J - natural
+                "viseme_SS": 0.35,    // S,Z - natural
+                "viseme_nn": 0.4,     // N - natural
+                "viseme_RR": 0.4,     // R - natural
+                "viseme_aa": 0.6,     // AA - natural opening
+                "viseme_E": 0.5,      // E - natural
+                "viseme_I": 0.45,     // I - natural
+                "viseme_O": 0.55,     // O - natural
+                "viseme_U": 0.5       // U - natural
             };
             
-            return intensityMap[visemeName] || 0.5;
+            return intensityMap[visemeName] || 0.4;
         }
 
         // Speaking animation state
@@ -1127,6 +1188,12 @@ Your 3D model works perfectly in this viewer regardless!`;
             }
         }
 
+        // Manual test function for visemes
+        function testLookingGlassViseme(visemeName = 'viseme_aa', intensity = 1.0) {
+            console.log(`🔮 [Looking Glass] Manual test: ${visemeName} with intensity ${intensity}`);
+            applyMorphTarget(visemeName, intensity);
+        }
+
         // Initialize everything
         async function init() {
             console.log('🚀 Initializing Looking Glass 3D Viewer...');
@@ -1140,6 +1207,17 @@ Your 3D model works perfectly in this viewer regardless!`;
             
             hideLoadingOverlay();
             animate();
+            
+            // Expose test functions globally
+            if (typeof window !== 'undefined') {
+                window.testLookingGlassViseme = testLookingGlassViseme;
+                window.testLGMouthOpen = () => testLookingGlassViseme('viseme_aa', 1.0);
+                window.testLGMouthClosed = () => testLookingGlassViseme('viseme_sil', 1.0);
+                console.log('🔮 [Looking Glass] Manual test functions available:');
+                console.log('  window.testLGMouthOpen() - Test mouth opening');
+                console.log('  window.testLGMouthClosed() - Test mouth closing');
+                console.log('  window.testLookingGlassViseme("viseme_name", intensity) - Test any viseme');
+            }
             
             console.log('✅ Viewer fully initialized with animation mirroring');
         }

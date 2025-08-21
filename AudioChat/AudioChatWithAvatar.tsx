@@ -7,7 +7,8 @@ import { AudioMessageHistory } from "./AudioMessageHistory";
 import { VRMAvatar } from "../components/VRMAvatar/VRMAvatar";
 
 // Welcome message from the personal tutor
-const WELCOME_MESSAGE = `Hello! I'm your personal Advocate and Assistant, and I'm excited to help you today. `;
+//const WELCOME_MESSAGE = `P P P P P P P P P P P`;
+const WELCOME_MESSAGE = `hello, Im Peter your personal advocate, I'm here to help you with your legal needs`;
 
 export function AudioChatWithAvatar() {
   const [isStarted, setIsStarted] = useState(false);

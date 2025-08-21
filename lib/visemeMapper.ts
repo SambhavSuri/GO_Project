@@ -12,44 +12,46 @@ export interface ReadyPlayerMeVisemeMap {
 }
 
 /**
- * 🎯 ENHANCED: Complete Azure TTS to Ready Player Me viseme mapping
- * Professional mapping with precise intensity and smooth factor values
- * Optimized for high-quality real-time lip synchronization
+ * 🎯 OFFICIAL AZURE MAPPING: Azure AI Speech Service to Ready Player Me viseme mapping
+ * Based on official Azure viseme specification with IPA phonemes
+ * Optimized for accurate real-time lip synchronization with Azure TTS
  */
 export const READY_PLAYER_ME_VISEME_MAP: ReadyPlayerMeVisemeMap = {
-  "0": { "morphTarget": "viseme_sil", "intensity": 1.0, "smoothFactor": 0.2 },
-  "1": { "morphTarget": "viseme_PP", "intensity": 0.9, "smoothFactor": 0.2 },
-  "2": { "morphTarget": "viseme_FF", "intensity": 0.85, "smoothFactor": 0.2 },
-  "3": { "morphTarget": "viseme_TH", "intensity": 0.85, "smoothFactor": 0.25 },
-  "4": { "morphTarget": "viseme_DD", "intensity": 0.9, "smoothFactor": 0.25 },
-  "5": { "morphTarget": "viseme_kk", "intensity": 0.85, "smoothFactor": 0.25 },
-  "6": { "morphTarget": "viseme_CH", "intensity": 0.9, "smoothFactor": 0.25 },
-  "7": { "morphTarget": "viseme_SS", "intensity": 0.8, "smoothFactor": 0.3 },
-  "8": { "morphTarget": "viseme_nn", "intensity": 0.9, "smoothFactor": 0.25 },
-  "9": { "morphTarget": "viseme_RR", "intensity": 0.85, "smoothFactor": 0.25 },
-  "10": { "morphTarget": "viseme_aa", "intensity": 1.0, "smoothFactor": 0.2 },
-  "11": { "morphTarget": "viseme_E", "intensity": 0.95, "smoothFactor": 0.2 },
-  "12": { "morphTarget": "viseme_I", "intensity": 0.95, "smoothFactor": 0.2 },
-  "13": { "morphTarget": "viseme_O", "intensity": 0.95, "smoothFactor": 0.2 },
-  "14": { "morphTarget": "viseme_U", "intensity": 0.95, "smoothFactor": 0.2 },
-  "15": { "morphTarget": "viseme_kk", "intensity": 0.85, "smoothFactor": 0.25 },
-  "16": { "morphTarget": "viseme_CH", "intensity": 0.9, "smoothFactor": 0.25 },
-  "17": { "morphTarget": "viseme_SS", "intensity": 0.8, "smoothFactor": 0.3 },
-  "18": { "morphTarget": "viseme_RR", "intensity": 0.85, "smoothFactor": 0.25 },
-  "19": { "morphTarget": "viseme_nn", "intensity": 0.9, "smoothFactor": 0.25 },
-  "20": { "morphTarget": "viseme_PP", "intensity": 0.9, "smoothFactor": 0.2 }
+  "0": { "morphTarget": "viseme_sil", "intensity": 0.3, "smoothFactor": 0.3 },      // Silence
+  "1": { "morphTarget": "viseme_aa", "intensity": 0.3, "smoothFactor": 0.4 },      // æ, ə, ʌ (TRAP, schwa, STRUT vowels)
+  "2": { "morphTarget": "viseme_aa", "intensity": 0.3, "smoothFactor": 0.3 },      // ɑ (PALM vowel - open back "ah")
+  "3": { "morphTarget": "viseme_O", "intensity": 0.3, "smoothFactor": 0.3 },       // ɔ (THOUGHT vowel - "aw")
+  "4": { "morphTarget": "viseme_E", "intensity": 0.3, "smoothFactor": 0.3 },       // ɛ, ʊ (DRESS, FOOT vowels)
+  "5": { "morphTarget": "viseme_RR", "intensity": 0.3, "smoothFactor": 0.4 },      // ɝ (R-colored vowel)
+  "6": { "morphTarget": "viseme_I", "intensity": 0.3, "smoothFactor": 0.3 },       // j, i, ɪ (y-sound, FLEECE, KIT vowels)
+  "7": { "morphTarget": "viseme_U", "intensity": 0.3, "smoothFactor": 0.4 },       // w, u (w-sound, GOOSE vowel)
+  "8": { "morphTarget": "viseme_O", "intensity": 0.3, "smoothFactor": 0.3 },       // o (close-mid back rounded)
+  "9": { "morphTarget": "viseme_aa", "intensity": 0.3, "smoothFactor": 0.3 },      // aʊ (MOUTH diphthong)
+  "10": { "morphTarget": "viseme_O", "intensity": 0.3, "smoothFactor": 0.3 },      // ɔɪ (CHOICE diphthong)
+  "11": { "morphTarget": "viseme_aa", "intensity": 0.3, "smoothFactor": 0.3 },     // aɪ (PRICE diphthong)
+  "12": { "morphTarget": "viseme_sil", "intensity": 0.1, "smoothFactor": 0.6 },    // h (aspiration - minimal mouth)
+  "13": { "morphTarget": "viseme_RR", "intensity": 0.3, "smoothFactor": 0.5 },     // ɹ (R sound)
+  "14": { "morphTarget": "viseme_DD", "intensity": 0.3, "smoothFactor": 0.6 },     // l (L sound - alveolar lateral)
+  "15": { "morphTarget": "viseme_SS", "intensity": 0.3, "smoothFactor": 0.6 },     // s, z (voiceless/voiced sibilants)
+  "16": { "morphTarget": "viseme_CH", "intensity": 0.3, "smoothFactor": 0.6 },     // ʃ, tʃ, dʒ, ʒ (SH, CH, J, ZH sounds)
+  "17": { "morphTarget": "viseme_TH", "intensity": 0.3, "smoothFactor": 0.5 },     // ð (voiced TH as in "the")
+  "18": { "morphTarget": "viseme_FF", "intensity": 0.3, "smoothFactor": 0.7 },     // f, v (labiodental fricatives)
+  "19": { "morphTarget": "viseme_DD", "intensity": 0.3, "smoothFactor": 0.8 },     // d, t, n, θ (alveolar stops, nasal, voiceless TH)
+  "20": { "morphTarget": "viseme_kk", "intensity": 0.3, "smoothFactor": 0.7 },     // k, g, ŋ (velar stops, NG)
+  "21": { "morphTarget": "viseme_PP", "intensity": 0.3, "smoothFactor": 0.8 }      // p, b, m (bilabial sounds)
 };
 
 /**
- * 🎯 ENHANCED: Maps Azure TTS viseme ID to Ready Player Me viseme data
- * @param azureVisemeId - Azure TTS viseme ID (0-20 enhanced range)
+ * 🎯 OFFICIAL AZURE MAPPING: Maps Azure TTS viseme ID to Ready Player Me viseme data
+ * Based on official Azure AI Speech Service viseme specification with IPA phonemes
+ * @param azureVisemeId - Azure TTS viseme ID (0-21 official range)
  * @returns VisemeMapping with morphTarget, intensity, and smoothFactor
  */
 export function mapAzureVisemeToReadyPlayerMe(azureVisemeId: number): VisemeMapping {
   const visemeMapping = READY_PLAYER_ME_VISEME_MAP[azureVisemeId.toString()];
   if (!visemeMapping) {
-    console.warn(`[VisemeMapper] Unknown Azure viseme ID: ${azureVisemeId}, falling back to silence. Supported range: 0-20`);
-    return { "morphTarget": "viseme_sil", "intensity": 1.0, "smoothFactor": 0.2 };
+    console.warn(`[VisemeMapper] Unknown Azure viseme ID: ${azureVisemeId}, falling back to silence. Official Azure range: 0-21 with IPA phonemes`);
+    return { "morphTarget": "viseme_sil", "intensity": 0.1, "smoothFactor": 0.2 };
   }
   return visemeMapping;
 }

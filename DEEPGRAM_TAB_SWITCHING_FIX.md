@@ -91,3 +91,5 @@ To test the fix:
 4. Voice chat should automatically reconnect and continue working
 
 The console will show detailed logs of the reconnection process.
+
+

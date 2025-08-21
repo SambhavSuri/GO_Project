@@ -312,6 +312,12 @@ async function initializeAnimationSystem(model, isVRM = false) {
     
     // Start with the initial animation sequence (walkingLeftTurn → idle)
     playInitialAnimationSequence();
+    
+    // 🚨 RAW MODE: Do NOT call ensureLipsSealed() at startup - VRMAvatar.tsx handles this
+    setTimeout(() => {
+        console.log('🚨 [static/js/main.js] Startup complete - VRMAvatar.tsx system controls Azure TTS lip sync');
+        // DO NOT call ensureLipsSealed() - it interferes with VRMAvatar.tsx Azure TTS system
+    }, 1000); // Wait for initial animations to settle
 }
 
 // Find morph targets in GLB model
@@ -575,17 +581,19 @@ function playAnimationSmooth(animationName, crossfadeDuration = 0.3) {
         currentAction = newAction;
         console.log(`✅ Playing animation: ${animationName}`);
         
-        // Auto-start speaking animation if this is the talking animation
-        if (animationName === 'talking') {
-            console.log('🎤 Auto-starting speaking with mouth movement...');
-            startSpeaking();
-        } else {
-            // Stop speaking if switching to non-talking animation
-            if (isSpeaking) {
-                console.log('🔇 Stopping speaking for non-talking animation...');
-                stopSpeaking();
-            }
+            // 🚨 RAW MODE: Do NOT call ensureLipsSealed() - VRMAvatar.tsx handles Azure TTS lip sync
+    if (animationName === 'talking') {
+        console.log('🎤 [static/js/main.js] Talking animation started - VRMAvatar.tsx handles Azure TTS lip sync');
+        // DO NOT call ensureLipsSealed() - it interferes with VRMAvatar.tsx Azure TTS system
+    } else {
+        // Stop any existing speaking animation when switching to non-talking
+        if (isSpeaking) {
+            console.log('🔇 Stopping speaking for non-talking animation...');
+            stopSpeaking();
         }
+        // DO NOT call ensureLipsSealed() for idle states - VRMAvatar.tsx handles this
+        console.log('🚨 [static/js/main.js] Idle animation - VRMAvatar.tsx controls lip state');
+    }
         return;
     }
     
@@ -600,16 +608,18 @@ function playAnimationSmooth(animationName, crossfadeDuration = 0.3) {
     
     console.log(`✅ Smooth transition to animation: ${animationName}`);
     
-    // Auto-start/stop speaking animation based on animation type
+    // 🚨 RAW MODE: Do NOT call ensureLipsSealed() during crossfade - VRMAvatar.tsx handles Azure TTS
     if (animationName === 'talking') {
-        console.log('🎤 Auto-starting speaking with mouth movement...');
-        startSpeaking();
+        console.log('🎤 [static/js/main.js] Talking animation crossfade - VRMAvatar.tsx handles Azure TTS lip sync');
+        // DO NOT call ensureLipsSealed() - it interferes with VRMAvatar.tsx Azure TTS system
     } else {
-        // Stop speaking if switching to non-talking animation
+        // Stop any existing speaking animation when switching to non-talking
         if (isSpeaking) {
             console.log('🔇 Stopping speaking for non-talking animation...');
             stopSpeaking();
         }
+        // DO NOT call ensureLipsSealed() for idle states - VRMAvatar.tsx handles this
+        console.log('🚨 [static/js/main.js] Animation crossfade - VRMAvatar.tsx controls lip state');
     }
 }
 
@@ -715,6 +725,37 @@ function startSynchronizedSpeaking() {
     startSpeaking();
     
     console.log('🎬🎤 Started fully synchronized speaking with talking animation and expressions');
+}
+
+// 🎯 AZURE TTS INTEGRATION: Ensure lips are properly sealed for idle/waiting states
+function ensureLipsSealed() {
+    if (!hasGLB || !currentModel) {
+        return;
+    }
+    
+    console.log('🔒 Ensuring lips are sealed - no random movement until Azure TTS');
+    
+    // Stop any existing speaking animation
+    if (isSpeaking) {
+        stopSpeaking();
+    }
+    
+    // Reset all visemes to ensure clean state
+    const allVisemes = [
+        'viseme_sil', 'viseme_aa', 'viseme_E', 'viseme_I', 'viseme_O', 'viseme_U', 
+        'viseme_PP', 'viseme_FF', 'viseme_TH', 'viseme_DD', 'viseme_kk', 
+        'viseme_CH', 'viseme_SS', 'viseme_nn', 'viseme_RR'
+    ];
+    
+    // Smoothly transition all visemes to 0 (neutral)
+    allVisemes.forEach(viseme => {
+        lerpMorphTarget(viseme, 0.0, 0.3);
+    });
+    
+    // Apply subtle silence viseme for natural mouth closure
+    setTimeout(() => {
+        lerpMorphTarget('viseme_sil', 0.2, 0.5); // Very subtle natural closure
+    }, 100);
 }
 
 // Stop speaking animation

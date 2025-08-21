@@ -165,6 +165,9 @@ export const useAzureTTS = (
         if (speechKey && speechRegion) {
           console.log('[AzureTTS] 🔥 Using Azure Speech SDK with genuine real-time visemes!');
           
+          // 🎯 AZURE TTS INTEGRATION: Prepare avatar for perfect lip sync
+          console.log('[AzureTTS] Preparing avatar for Azure TTS lip sync...');
+          
           // Import the Speech SDK function (ONLY approach we use)
           const { azureSpeechSDKTTS } = await import('../lib/azureTTS');
           

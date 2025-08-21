@@ -62,19 +62,40 @@ export async function azureSpeechSDKTTS(
 
       console.log('[Speech SDK] ✅ Speech synthesizer created');
 
-      // 🎯 STREAMLINED: Direct viseme callback - no intermediate objects
-      speechSynthesizer.visemeReceived = (sender, e) => {
-        console.log(`[Speech SDK] 👄 Direct Viseme: ID=${e.visemeId} at ${e.audioOffset / 10000}ms`);
-        
-        if (onDirectViseme) {
-          // 🚀 DIRECT: Pass only the essential data - no wrapper objects!
-          onDirectViseme(e.visemeId, e.audioOffset / 10000);
-        }
+      // Track viseme sequence for debugging
+      let visemeSequence: Array<{id: number, offset: number}> = [];
+      
+      // Official Azure viseme ID reference with IPA phonemes
+      const azureVisemeReference: {[key: number]: string} = {
+        0: 'silence', 1: 'æ,ə,ʌ', 2: 'ɑ', 3: 'ɔ', 4: 'ɛ,ʊ', 5: 'ɝ', 
+        6: 'j,i,ɪ', 7: 'w,u', 8: 'o', 9: 'aʊ', 10: 'ɔɪ', 11: 'aɪ', 
+        12: 'h', 13: 'ɹ', 14: 'l', 15: 's,z', 16: 'ʃ,tʃ,dʒ,ʒ', 17: 'ð', 
+        18: 'f,v', 19: 'd,t,n,θ', 20: 'k,g,ŋ', 21: 'p,b,m'
       };
 
+      // 🎯 AZURE TTS INTEGRATION: Real-time viseme callback with perfect synchronization
+      speechSynthesizer.visemeReceived = (sender, e) => {
+        if (onDirectViseme) {
+          // Convert audio offset from 100-nanosecond units to milliseconds
+          const offsetMs = e.audioOffset / 10000;
+          
+          // Track viseme in sequence
+          visemeSequence.push({id: e.visemeId, offset: offsetMs});
+          
+          // 🚨 DETAILED AZURE VISEME LOGGING
+          const phoneme = azureVisemeReference[e.visemeId] || 'unknown';
+          console.log(`🔥 [Azure Speech SDK] VISEME RECEIVED: ID=${e.visemeId} (${phoneme}) at ${offsetMs.toFixed(1)}ms`);
+          console.log(`🎯 [Azure Speech SDK] Viseme Details: {id: ${e.visemeId}, phoneme: "${phoneme}", offset: ${offsetMs.toFixed(1)}ms, timestamp: ${Date.now()}}`);
+          
+          // 🚀 DIRECT: Pass viseme immediately for perfect sync
+          onDirectViseme(e.visemeId, offsetMs);
+        }
+      };
+      
       // Set up synthesis started handler
       speechSynthesizer.synthesisStarted = (sender, e) => {
-        console.log('[Speech SDK] 🎵 Synthesis started');
+        console.log('[Speech SDK] 🎵 Synthesis started - Azure viseme tracking begins');
+        visemeSequence = []; // Reset sequence for new synthesis
       };
 
       // Set up synthesis completed handler
@@ -89,6 +110,19 @@ export async function azureSpeechSDKTTS(
           // Send the complete audio
           if (onAudioChunk) {
             onAudioChunk(audioData, true);
+          }
+          
+          // 🎯 AZURE TTS INTEGRATION: Send final silence viseme for natural lip closure
+          if (onDirectViseme) {
+            console.log('[Speech SDK] 🔒 Sending final silence viseme for natural lip closure');
+            // Log complete viseme sequence for analysis
+            console.log(`📈 [Azure Speech SDK] COMPLETE VISEME SEQUENCE: ${visemeSequence.map(v => `${v.id}(${azureVisemeReference[v.id] || '?'})@${v.offset.toFixed(0)}ms`).join(', ')}`);
+            console.log(`📊 [Azure Speech SDK] Total visemes received: ${visemeSequence.length}`);
+            
+            // Send silence viseme with slight delay to ensure natural closure
+            setTimeout(() => {
+              onDirectViseme(0, 0); // Viseme ID 0 is silence
+            }, 100);
           }
           
           if (onComplete) {
