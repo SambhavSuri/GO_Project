@@ -43,7 +43,7 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
   const [modelType, setModelType] = useState<'vrm' | 'glb'>('glb');
   
   // Get audio context for syncing with speech
-  const { isAvatarTalking, isProcessingResponse, onGLBAudioStart, onViseme } = useAudioContext();
+  const { isAvatarTalking, isProcessingResponse, onGLBAudioStart, onViseme, setIsAvatarTalking } = useAudioContext();
   
   // Speaking animation state for GLB models
   const speakingIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -418,8 +418,91 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
           }
         }, 1000); // 1 second intervals
       };
+      
+      // 🎬 BODY ANIMATION TEST: Test body animation manually
+      (window as any).testBodyAnimation = () => {
+        console.log('🎬 [BODY ANIMATION TEST] Starting body animation test...');
+        
+        let currentAnim = 'idle';
+        let testCount = 0;
+        const maxTests = 9; // 3 cycles of idle -> talking -> thinking
+        
+        const testInterval = setInterval(() => {
+          switch (currentAnim) {
+            case 'idle':
+              console.log('🎬 [BODY ANIMATION TEST] Playing TALKING animation');
+              playAnimation('talking');
+              currentAnim = 'talking';
+              break;
+            case 'talking':
+              console.log('🎬 [BODY ANIMATION TEST] Playing THINKING animation');
+              playAnimation('thinking');
+              currentAnim = 'thinking';
+              break;
+            case 'thinking':
+              console.log('🎬 [BODY ANIMATION TEST] Playing IDLE animation');
+              playAnimation('idle');
+              currentAnim = 'idle';
+              break;
+          }
+          
+          testCount++;
+          if (testCount >= maxTests) {
+            clearInterval(testInterval);
+            // End in idle position
+            playAnimation('idle');
+            console.log('🎬 [BODY ANIMATION TEST] Completed 3 animation cycles. Avatar should now be idle.');
+          }
+        }, 2000); // 2 second intervals
+      };
+      
+      // 🎬 TTS SIMULATION TEST: Simulate TTS body animation trigger
+      (window as any).testTTSBodyAnimation = () => {
+        console.log('🎬 [TTS SIMULATION TEST] Simulating TTS body animation...');
+        
+        // Directly trigger the talking animation without waiting for callback
+        console.log('🎬 [TTS SIMULATION TEST] Directly triggering talking animation');
+        playAnimation('talking');
+        
+        // Simulate audio start time for viseme synchronization
+        audioStartTimeRef.current = Date.now();
+        console.log('🎬 [TTS SIMULATION TEST] Audio start time set for viseme sync');
+        
+        // Stop after 5 seconds
+        setTimeout(() => {
+          console.log('🎬 [TTS SIMULATION TEST] Stopping talking animation - returning to idle');
+          playAnimation('idle');
+          audioStartTimeRef.current = null;
+        }, 5000);
+      };
+      
+      // 🎬 STATE DEBUG: Check current state and force talking animation
+      (window as any).debugAvatarState = () => {
+        console.log('🎬 [DEBUG] Current Avatar State:', {
+          isAvatarTalking,
+          isProcessingResponse,
+          modelType,
+          talkingClipAvailable: !!talkingClipRef.current,
+          idleClipAvailable: !!idleClipRef.current,
+          mixerAvailable: !!mixerRef.current,
+          modelAvailable: !!modelRef.current,
+          currentAction: currentActionRef.current?.getClip()?.name || 'none',
+          audioStartTime: audioStartTimeRef.current
+        });
+        
+        // Force talking animation regardless of state
+        console.log('🎬 [DEBUG] Force triggering talking animation...');
+        playAnimation('talking');
+      };
+      
+      // 🎬 FORCE TALKING STATE: Manually set talking state to true
+      (window as any).forceTalkingState = () => {
+        console.log('🎬 [FORCE] Setting isAvatarTalking to true...');
+        setIsAvatarTalking(true);
+        audioStartTimeRef.current = Date.now();
+      };
     }
-  }, [testManualViseme, displayVisemeSummary]);
+  }, [testManualViseme, displayVisemeSummary, isAvatarTalking, isProcessingResponse, modelType, setIsAvatarTalking]);
 
   // 🎯 ENHANCED: Smooth morph target transitions with professional smoothFactor
   const setMorphTargetSmooth = (targetName: string, targetValue: number, smoothFactor: number) => {
@@ -696,33 +779,71 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
   // Load animations for GLB models
   const loadAnimationsForGLB = async () => {
     const loader = new GLTFLoader();
+    console.log('🎬 [VRMAvatar] Starting to load animations...');
     
     try {
       // Load idle animation
+      console.log('🎬 [VRMAvatar] Loading idle animation...');
       const idleGltf = await loader.loadAsync('/static/animations/idleMale.glb');
       if (idleGltf.animations.length > 0) {
         idleClipRef.current = idleGltf.animations[0];
         idleClipRef.current.name = 'idle';
+        console.log('✅ [VRMAvatar] Idle animation loaded successfully:', idleClipRef.current.name);
+      } else {
+        console.warn('⚠️ [VRMAvatar] No animations found in idle GLB file');
       }
       
       // Load talking animation
-      const talkingGltf = await loader.loadAsync('/static/animations/Talking.glb');
-      if (talkingGltf.animations.length > 0) {
-        talkingClipRef.current = talkingGltf.animations[0];
-        talkingClipRef.current.name = 'talking';
-      }
-      
-      // Load waving animation as alternative
-      const wavingGltf = await loader.loadAsync('/static/animations/waving.glb');
-      if (wavingGltf.animations.length > 0 && !talkingClipRef.current) {
-        talkingClipRef.current = wavingGltf.animations[0];
-        talkingClipRef.current.name = 'talking';
+      console.log('🎬 [VRMAvatar] Loading talking animation...');
+      try {
+        const talkingGltf = await loader.loadAsync('/static/animations/Talking.glb');
+        if (talkingGltf.animations.length > 0) {
+          talkingClipRef.current = talkingGltf.animations[0];
+          talkingClipRef.current.name = 'talking';
+          console.log('✅ [VRMAvatar] Talking animation loaded successfully:', talkingClipRef.current.name);
+        } else {
+          console.warn('⚠️ [VRMAvatar] No animations found in Talking.glb file');
+        }
+      } catch (talkingError) {
+        console.warn('⚠️ [VRMAvatar] Failed to load Talking.glb, trying waving.glb as fallback:', talkingError);
+        
+        // Load waving animation as alternative
+        try {
+          const wavingGltf = await loader.loadAsync('/static/animations/waving.glb');
+          if (wavingGltf.animations.length > 0) {
+            talkingClipRef.current = wavingGltf.animations[0];
+            talkingClipRef.current.name = 'talking';
+            console.log('✅ [VRMAvatar] Waving animation loaded as talking fallback:', talkingClipRef.current.name);
+          } else {
+            console.warn('⚠️ [VRMAvatar] No animations found in waving GLB file');
+          }
+        } catch (wavingError) {
+          console.error('❌ [VRMAvatar] Failed to load waving animation as fallback:', wavingError);
+          // Use idle animation as final fallback for talking
+          if (idleClipRef.current) {
+            talkingClipRef.current = idleClipRef.current.clone();
+            talkingClipRef.current.name = 'talking';
+            console.log('✅ [VRMAvatar] Using idle animation as talking fallback');
+          }
+        }
       }
       
       // Use idle as thinking for now
       thinkingClipRef.current = idleClipRef.current;
+      
+      // Log final animation status
+      console.log('🎬 [VRMAvatar] Animation loading completed:', {
+        idle: !!idleClipRef.current,
+        talking: !!talkingClipRef.current,
+        thinking: !!thinkingClipRef.current
+      });
+      
     } catch (error) {
-      console.warn('⚠️ Some animations failed to load:', error);
+      console.error('❌ [VRMAvatar] Critical error loading animations:', error);
+      // Ensure we have at least some animation clips even if loading fails
+      if (!idleClipRef.current && !talkingClipRef.current) {
+        console.error('❌ [VRMAvatar] No animations available - avatar will not animate properly');
+      }
     }
   };
 
@@ -786,7 +907,12 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
 
   // Play animation
   const playAnimation = (clipName: 'idle' | 'talking' | 'thinking') => {
-    if (!mixerRef.current || !modelRef.current) return;
+    console.log(`🎬 [VRMAvatar] playAnimation called with: "${clipName}"`);
+    
+    if (!mixerRef.current || !modelRef.current) {
+      console.warn(`🎬 [VRMAvatar] Cannot play animation - mixer: ${!!mixerRef.current}, model: ${!!modelRef.current}`);
+      return;
+    }
     
     let clip: THREE.AnimationClip | null = null;
     
@@ -802,25 +928,48 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
         break;
     }
     
+    console.log(`🎬 [VRMAvatar] Animation clip "${clipName}" available: ${!!clip}`);
+    
     if (!clip) {
-      console.warn(`Animation clip "${clipName}" not available`);
-      return;
+      console.warn(`❌ [VRMAvatar] Animation clip "${clipName}" not available! Available clips:`, {
+        idle: !!idleClipRef.current,
+        talking: !!talkingClipRef.current,
+        thinking: !!thinkingClipRef.current
+      });
+      
+      // Try to use idle animation as fallback for talking/thinking
+      if (clipName !== 'idle' && idleClipRef.current) {
+        console.log(`🎬 [VRMAvatar] Using idle animation as fallback for "${clipName}"`);
+        clip = idleClipRef.current;
+      } else {
+        return;
+      }
     }
     
-    // Stop current animation with fade
-    if (currentActionRef.current) {
-      currentActionRef.current.fadeOut(0.5);
+    try {
+      // Stop current animation with fade
+      if (currentActionRef.current) {
+        console.log(`🎬 [VRMAvatar] Stopping current animation: ${currentActionRef.current.getClip().name}`);
+        currentActionRef.current.fadeOut(0.5);
+      }
+      
+      // Retarget animation for GLB models
+      const targetClip = modelType === 'glb' ? retargetAnimation(clip, modelRef.current) : clip;
+      console.log(`🎬 [VRMAvatar] Retargeted animation for ${modelType} model, tracks: ${targetClip.tracks.length}`);
+      
+      // Play new animation
+      const action = mixerRef.current.clipAction(targetClip);
+      action.reset();
+      action.fadeIn(0.5);
+      action.play();
+      action.setLoop(THREE.LoopRepeat, Infinity); // Ensure the animation loops
+      currentActionRef.current = action;
+      
+      console.log(`✅ [VRMAvatar] Successfully started "${clipName}" animation`);
+      
+    } catch (error) {
+      console.error(`❌ [VRMAvatar] Error playing animation "${clipName}":`, error);
     }
-    
-    // Retarget animation for GLB models
-    const targetClip = modelType === 'glb' ? retargetAnimation(clip, modelRef.current) : clip;
-    
-    // Play new animation
-    const action = mixerRef.current.clipAction(targetClip);
-    action.reset();
-    action.fadeIn(0.5);
-    action.play();
-    currentActionRef.current = action;
   };
 
   // Initialize Three.js scene
@@ -1106,20 +1255,27 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
   useEffect(() => {
     if (onGLBAudioStart && modelType === 'glb') {
       const triggerAnimation = () => {
+        console.log('🎬 [VRMAvatar] TTS audio started - triggering body animation');
+        
         // 🎯 CRITICAL: Capture the exact moment TTS audio starts playing
         const audioStartTime = Date.now();
         audioStartTimeRef.current = audioStartTime;
+        console.log(`🎬 [VRMAvatar] Audio start time recorded: ${audioStartTime}`);
         
         // Start body animation  
+        console.log('🎬 [VRMAvatar] Starting talking animation for body movement');
         playAnimation('talking');
         
         // DO NOT call startSpeakingAnimation() or sealLipsForIdle() - Azure TTS timing system handles all lip sync
+        console.log('🎬 [VRMAvatar] Body animation triggered, Azure TTS will handle lip sync');
       };
       
+      console.log('🎬 [VRMAvatar] Registering GLB audio start callback for body animation');
       onGLBAudioStart(triggerAnimation);
       
       return () => {
         // Clean up callback
+        console.log('🎬 [VRMAvatar] Cleaning up GLB audio start callback');
         onGLBAudioStart(() => {});
       };
     }
@@ -1147,30 +1303,63 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
   
   // Sync animations with audio state  
   useEffect(() => {
+    console.log(`🎬 [VRMAvatar] Animation sync triggered:`, {
+      isAvatarTalking,
+      isProcessingResponse,
+      modelType,
+      timestamp: new Date().toISOString()
+    });
+    
     if (isAvatarTalking) {
-      // 🚨 RAW MODE: Don't interfere with Azure TTS visemes when avatar is talking
+      console.log('🎬 [VRMAvatar] Avatar is talking - FORCING talking animation for GLB models');
+      
       if (modelType === 'glb') {
+        // 🎯 FORCE TALKING ANIMATION: Always trigger talking animation when isAvatarTalking is true
+        console.log('🎬 [VRMAvatar] FORCING talking animation for GLB model');
+        playAnimation('talking');
+        
+        // Set audio start time if not already set (for proper viseme timing)
+        if (!audioStartTimeRef.current) {
+          audioStartTimeRef.current = Date.now();
+          console.log('🎬 [VRMAvatar] Setting audio start time for viseme synchronization');
+        }
+        
         // Check if Azure TTS visemes are already active
         const hasActiveVisemes = playedVisemesRef.current.length > 0 || currentActiveVisemeRef.current;
         
-        if (hasActiveVisemes) {
-          // Don't seal lips, Azure TTS is already controlling them
-        } else {
-          stopSpeakingAnimation(); // Smart stop - won't interfere with active Azure TTS
+        console.log('🎬 [VRMAvatar] GLB model talking state:', {
+          hasActiveVisemes,
+          playedVisemesCount: playedVisemesRef.current.length,
+          currentActiveViseme: !!currentActiveVisemeRef.current,
+          talkingClipAvailable: !!talkingClipRef.current,
+          mixerAvailable: !!mixerRef.current
+        });
+        
+        if (!hasActiveVisemes) {
+          console.log('🎬 [VRMAvatar] No active Azure TTS visemes - talking animation should still be visible for body movement');
         }
+        
       } else if (modelType === 'vrm') {
+        console.log('🎬 [VRMAvatar] VRM model - starting talking animation');
         // For VRM models, start animations immediately since they don't have the audio sync
         playAnimation('talking');
         startSpeakingAnimation();
       }
     } else if (isProcessingResponse) {
+      console.log('🎬 [VRMAvatar] Processing response - starting thinking animation');
       playAnimation('thinking');
+      
       // Stop speaking animation when thinking - smart stop won't interfere with active Azure TTS
       if (modelType === 'glb') {
         stopSpeakingAnimation(); // Smart stop - preserves Azure TTS state
       }
     } else {
+      console.log('🎬 [VRMAvatar] Idle state - starting idle animation');
       playAnimation('idle');
+      
+      // Clear audio start time when going to idle
+      audioStartTimeRef.current = null;
+      
       // Stop speaking animation when idle - smart stop won't interfere with active Azure TTS
       if (modelType === 'glb') {
         stopSpeakingAnimation(); // Smart stop - preserves Azure TTS state

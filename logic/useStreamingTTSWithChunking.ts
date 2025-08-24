@@ -338,9 +338,11 @@ export function useStreamingTTSWithChunking(
       // 🎯 COORDINATE WITH VRMAVATAR: Set audio start time reference BEFORE sending visemes
       if (onAudioStartPlaying) {
         console.log('🎬 [StreamingTTS] Calling onAudioStartPlaying to trigger body animation');
+        console.log('🎬 [StreamingTTS] Audio is about to start playing - triggering VRMAvatar body animation');
         onAudioStartPlaying();  // This sets audioStartTimeRef.current in VRMAvatar and triggers body animation
+        console.log('✅ [StreamingTTS] onAudioStartPlaying callback executed successfully');
       } else {
-        console.log('⚠️ [StreamingTTS] onAudioStartPlaying callback not available');
+        console.log('⚠️ [StreamingTTS] onAudioStartPlaying callback not available - body animation will not be triggered');
       }
       
       // 🎯 APPLY STORED VISEMES: Send all visemes for this chunk to VRMAvatar for scheduling
@@ -360,16 +362,25 @@ export function useStreamingTTSWithChunking(
         console.log(`⚠️ [StreamingTTS] onVisemeRef not available for chunk ${nextChunkNumber} - VRMAvatar not connected`);
       }
       
-      // Audio starts playing
+      // 🎯 CRITICAL: Set avatar talking state FIRST, then start audio
+      console.log('🎬 [StreamingTTS] Setting avatar talking state and starting audio playback');
+      
       setIsAudioPlaying(true);
       if (setIsAvatarTalking) {
+        console.log('🎬 [StreamingTTS] Calling setIsAvatarTalking(true) to trigger body animation');
         setIsAvatarTalking(true);
+      } else {
+        console.warn('⚠️ [StreamingTTS] setIsAvatarTalking callback not available');
       }
+      
       if (setIsAvatarSessionActive) {
+        console.log('🎬 [StreamingTTS] Setting avatar session active');
         setIsAvatarSessionActive(true);
       }
       
+      console.log('🎬 [StreamingTTS] Starting audio playback...');
       await audio.play();
+      console.log('✅ [StreamingTTS] Audio playback started successfully');
       
     } catch (error: any) {
       console.error(`[StreamingTTS] Error processing chunk:`, error);
