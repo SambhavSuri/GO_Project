@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useAudioVoiceChat } from "../logic/useAudioVoiceChat";
 import { useAudioContext } from "../logic/AudioProvider";
 import { useAudioRagIntegration } from "../logic/useAudioRagIntegration";
@@ -204,8 +204,16 @@ export const AudioVoiceChatControls = () => {
     }
   };
 
-  const handleInterrupt = async () => {
+  const handleInterrupt = useCallback(async () => {
     try {
+      console.log('[AudioVoiceChatControls] 🛑 PETER STOP: Executing complete interruption');
+      
+      // 🎯 FIX: Stop the entire RAG stream, not just TTS
+      // Dispatch event to stop all streaming responses
+      window.dispatchEvent(new CustomEvent('stopAllStreaming', { 
+        detail: { reason: 'peter_stop_command' }
+      }));
+      
       if (stopSpeaking) {
         stopSpeaking(true);
       }
@@ -213,7 +221,7 @@ export const AudioVoiceChatControls = () => {
     } catch (error) {
       console.error('[AudioVoiceChatControls] Error interrupting audio:', error);
     }
-  };
+  }, [stopSpeaking, requestAudioInterruption]);
 
   // Add event listener for "peter stop" interrupt commands
   useEffect(() => {

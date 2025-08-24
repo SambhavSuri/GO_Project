@@ -126,6 +126,17 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       if (onGLBAudioStartRef.current) {
         onGLBAudioStartRef.current();
       }
+    },
+    // 🎯 NEW: Pass viseme callback to streaming TTS
+    (visemeId: number, offset: number) => {
+      console.log('[AudioProvider] 🚀 Direct viseme received from streaming TTS:', visemeId, 'at offset:', offset + 'ms');
+      // Call the direct viseme callback if it exists
+      if (onVisemeRef.current) {
+        console.log('[AudioProvider] 🎯 Passing direct viseme to avatar from streaming TTS:', visemeId);
+        onVisemeRef.current(visemeId, offset);
+      } else {
+        console.log('[AudioProvider] No direct viseme callback registered for streaming TTS');
+      }
     }
   );
 
@@ -210,6 +221,13 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // Enhanced speakText function that supports both TTS approaches
   const speakText = useCallback(async (text: string, isWelcome: boolean = false) => {
+    console.log('[AudioProvider] speakText called with:', { 
+      textLength: text.length, 
+      text: text.substring(0, 50) + '...', 
+      isWelcome,
+      useStreamingChunkedTTS: useStreamingChunkedTTS.current
+    });
+    
     if (isWelcome) {
       isWelcomeMessageRef.current = true;
       console.log('[AudioProvider] Speaking welcome message');
@@ -220,9 +238,32 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       console.log('[AudioProvider] Speaking regular message (finalization handled by RAG)');
     }
     
-    // Use existing approach for now (can switch to streaming later)
-    await ttsFunctions.speakText(text);
-  }, [ttsFunctions]); // Include ttsFunctions dependency
+    // Check if text is empty
+    if (!text || text.trim().length === 0) {
+      console.warn('[AudioProvider] Cannot speak empty text!');
+      return;
+    }
+    
+    try {
+      // 🎯 OPTIMIZATION: Use direct TTS for welcome messages, streaming for conversations
+      if (isWelcome) {
+        console.log('[AudioProvider] Using direct TTS for welcome message (simpler and more reliable)');
+        await ttsFunctions.speakText(text);
+        console.log('[AudioProvider] Direct TTS welcome completed');
+      } else if (useStreamingChunkedTTS.current) {
+        console.log('[AudioProvider] Using streaming chunked TTS for conversation');
+        // For streaming TTS, we call speakStreamingText with isComplete=true for single messages
+        streamingTTSFunctions.speakStreamingText(text, onVisemeRef.current || undefined, true);
+        console.log('[AudioProvider] Streaming TTS initiated');
+      } else {
+        console.log('[AudioProvider] Using traditional TTS approach');
+        await ttsFunctions.speakText(text);
+        console.log('[AudioProvider] Traditional TTS completed');
+      }
+    } catch (error) {
+      console.error('[AudioProvider] Error in speakText:', error);
+    }
+  }, [ttsFunctions, streamingTTSFunctions]); // Include both TTS function dependencies
   
   // New function for streaming text with chunking (for delay-less TTS)
   const speakStreamingText = useCallback((text: string, onViseme?: (visemeId: number, offset: number) => void, isComplete?: boolean) => {
@@ -234,6 +275,22 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const clearCurrentAiResponse = useCallback(() => {
     setCurrentAiResponse('');
     currentAiResponseRef.current = '';
+  }, []);
+  
+  // 🎯 FIX: Create stable callback registration functions to prevent infinite re-renders
+  const onAudioChunkFinishedCallback = useCallback((callback: (duration: number) => void) => {
+    console.log('[AudioProvider] Registering onAudioChunkFinished callback');
+    onAudioChunkFinishedRef.current = callback;
+  }, []);
+  
+  const onGLBAudioStartCallback = useCallback((callback: () => void) => {
+    console.log('[AudioProvider] Registering onGLBAudioStart callback for body animation');
+    onGLBAudioStartRef.current = callback;
+  }, []);
+  
+  const onVisemeCallback = useCallback((callback: (visemeId: number, offset: number) => void) => {
+    console.log('[AudioProvider] Registering onViseme callback for lip sync');
+    onVisemeRef.current = callback;
   }, []);
   
   const contextValue = useMemo(() => ({
@@ -306,20 +363,10 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     speakStreamingText,
     isStreamingTTS: useStreamingChunkedTTS.current,
     
-    // Audio chunk finished callback - stable function that doesn't change
-    onAudioChunkFinished: (callback: (duration: number) => void) => {
-      onAudioChunkFinishedRef.current = callback;
-    },
-    
-    // GLB animation callback for when audio actually starts playing
-    onGLBAudioStart: (callback: () => void) => {
-      onGLBAudioStartRef.current = callback;
-    },
-    
-    // 🎯 STREAMLINED: Direct viseme callback for immediate lip sync
-    onViseme: (callback: (visemeId: number, offset: number) => void) => {
-      onVisemeRef.current = callback;
-    },
+    // Stable callback registration functions
+    onAudioChunkFinished: onAudioChunkFinishedCallback,
+    onGLBAudioStart: onGLBAudioStartCallback,
+    onViseme: onVisemeCallback,
     
     // Override avatar methods for audio-only mode
     startAvatarSession: () => {
@@ -353,8 +400,10 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     speakStreamingText,
     ttsFunctions.stopSpeaking,
     streamingTTSFunctions.stopSpeaking,
-    initializeAudioContext
-    // Note: onAudioChunkFinished is not in dependencies as it's a stable function
+    initializeAudioContext,
+    onAudioChunkFinishedCallback,
+    onGLBAudioStartCallback,
+    onVisemeCallback
   ]);
 
   return (

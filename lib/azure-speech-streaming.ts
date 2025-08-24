@@ -122,6 +122,7 @@ export class AzureSpeechService {
         // Set up viseme event handler
         if (onViseme) {
           this.synthesizer.visemeReceived = (sender, event) => {
+            console.log('[AzureSDK] Viseme received:', event.audioOffset, event.visemeId);
             onViseme({
               audioOffset: event.audioOffset,
               visemeId: event.visemeId

@@ -2,24 +2,49 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Custom scrollbar styles */
+/* Enhanced scrollbar styles */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #f1f1f1;
-  border-radius: 4px;
+  background: transparent;
+  border-radius: 6px;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #888;
-  border-radius: 4px;
+  background: rgba(156, 163, 175, 0.5);
+  border-radius: 6px;
+  transition: all 0.2s ease;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #555;
+  background: rgba(107, 114, 128, 0.7);
+}
+
+/* Custom scrollbar utility classes */
+.scrollbar-thin {
+  scrollbar-width: thin;
+}
+
+.scrollbar-thumb-gray-300 {
+  scrollbar-color: rgba(209, 213, 219, 0.5) transparent;
+}
+
+.scrollbar-track-transparent {
+  scrollbar-color: rgba(209, 213, 219, 0.5) transparent;
+}
+
+/* Smooth scrolling */
+.smooth-scroll {
+  scroll-behavior: smooth;
+}
+
+/* Professional glass effect */
+.backdrop-glass {
+  backdrop-filter: blur(10px);
+  background: rgba(255, 255, 255, 0.85);
 }
 
 /* Custom styles for audio visualization */

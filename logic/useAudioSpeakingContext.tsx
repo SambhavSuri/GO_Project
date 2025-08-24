@@ -34,6 +34,14 @@ export const AudioSpeakingProvider: React.FC<{ children: React.ReactNode }> = ({
     setIsCurrentlyInterrupted(false);
   }, []);
 
+  // Force clear interruption state (for user-initiated actions like new conversation)
+  const clearInterruption = useCallback(() => {
+    console.log('[AudioSpeaking] 🔄 Force clearing interruption state for new user action');
+    console.log('[AudioSpeaking] 🔍 Before clear: isCurrentlyInterrupted =', isCurrentlyInterrupted, ', isInterruptedRef.current =', isInterruptedRef.current);
+    setIsCurrentlyInterrupted(false);
+    console.log('[AudioSpeaking] ✅ Interruption state cleared');
+  }, [isCurrentlyInterrupted]);
+
   // Function to register the stopSpeaking function
   const registerStopSpeaking = useCallback((stopFn: () => void) => {
     stopSpeakingRef.current = stopFn;
@@ -46,6 +54,7 @@ export const AudioSpeakingProvider: React.FC<{ children: React.ReactNode }> = ({
     abortControllerRef,
     requestAudioInterruption,
     resetInterruptionState,
+    clearInterruption,
     registerStopSpeaking,
   };
 
