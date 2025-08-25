@@ -501,8 +501,21 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
         setIsAvatarTalking(true);
         audioStartTimeRef.current = Date.now();
       };
+      
+      // 🎬 CHECK LOADING STATE: Debug what's preventing animations
+      (window as any).checkLoadingState = () => {
+        console.log('🎬 [LOADING CHECK] Current loading state:', {
+          isLoading,
+          mixer: !!mixerRef.current,
+          model: !!modelRef.current,
+          modelType,
+          talkingClip: !!talkingClipRef.current,
+          idleClip: !!idleClipRef.current,
+          canPlayAnimations: !!(mixerRef.current && modelRef.current && !isLoading)
+        });
+      };
     }
-  }, [testManualViseme, displayVisemeSummary, isAvatarTalking, isProcessingResponse, modelType, setIsAvatarTalking]);
+  }, [testManualViseme, displayVisemeSummary, isAvatarTalking, isProcessingResponse, modelType, setIsAvatarTalking, isLoading]);
 
   // 🎯 ENHANCED: Smooth morph target transitions with professional smoothFactor
   const setMorphTargetSmooth = (targetName: string, targetValue: number, smoothFactor: number) => {
@@ -1096,7 +1109,12 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
           // Start with idle animation
           playAnimation('idle');
           
-          setIsLoading(false);
+          // 🎯 TRIGGER INITIAL ANIMATION SYNC: Now that VRM is loaded, sync with current state
+          console.log('🎬 [VRMAvatar] VRM loaded - triggering initial animation sync');
+          setTimeout(() => {
+            // This will trigger the animation sync useEffect since model and mixer are now ready
+            setIsLoading(false); // This will cause the animation sync useEffect to run
+          }, 100);
         },
         (progress) => {
           // Loading progress
@@ -1151,6 +1169,13 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
           // Ensure lips are sealed on initial load
           setTimeout(() => sealLipsForIdle(), 500);
           
+          // 🎯 TRIGGER INITIAL ANIMATION SYNC: Now that model is loaded, sync with current state
+          console.log('🎬 [VRMAvatar] Model loaded - triggering initial animation sync');
+          setTimeout(() => {
+            // This will trigger the animation sync useEffect since model and mixer are now ready
+            setIsLoading(false); // This will cause the animation sync useEffect to run
+          }, 100);
+          
           // Initialize lip sync debugger
           debuggerRef.current = new LipSyncDebugger(model);
           const report = debuggerRef.current.generateReport();
@@ -1161,8 +1186,6 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
             console.warn('[VRMAvatar] ⚠️ Missing Ready Player Me visemes. Lip sync may be imperfect.');
             console.warn('[VRMAvatar] Missing visemes:', visemeCheck.missing);
           }
-          
-          setIsLoading(false);
         },
         (progress) => {
           // Loading progress
@@ -1301,8 +1324,19 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
     }
   }, [onViseme, modelType, handleDirectViseme]);
   
-  // Sync animations with audio state  
+  // Sync animations with audio state - WITH LOADING PROTECTION
   useEffect(() => {
+    // 🛡️ LOADING PROTECTION: Don't try to play animations until model and mixer are ready
+    if (!mixerRef.current || !modelRef.current || isLoading) {
+      console.log(`🎬 [VRMAvatar] Animation sync skipped - waiting for model to load:`, {
+        mixer: !!mixerRef.current,
+        model: !!modelRef.current,
+        isLoading,
+        modelType
+      });
+      return;
+    }
+    
     console.log(`🎬 [VRMAvatar] Animation sync triggered:`, {
       isAvatarTalking,
       isProcessingResponse,
@@ -1365,7 +1399,7 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
         stopSpeakingAnimation(); // Smart stop - preserves Azure TTS state
       }
     }
-  }, [isAvatarTalking, isProcessingResponse, modelType]);
+  }, [isAvatarTalking, isProcessingResponse, modelType, isLoading]);
   
   // Handle window resize
   useEffect(() => {
