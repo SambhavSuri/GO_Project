@@ -15,6 +15,9 @@ export interface ReadyPlayerMeVisemeMap {
  * 🎯 OFFICIAL AZURE MAPPING: Azure AI Speech Service to Ready Player Me viseme mapping
  * Based on official Azure viseme specification with IPA phonemes
  * Optimized for accurate real-time lip synchronization with Azure TTS
+ * 🎯 OFFICIAL AZURE MAPPING: Azure AI Speech Service to Ready Player Me viseme mapping
+ * Based on official Azure viseme specification with IPA phonemes
+ * Optimized for accurate real-time lip synchronization with Azure TTS
  */
 export const READY_PLAYER_ME_VISEME_MAP: ReadyPlayerMeVisemeMap = {
   "0": { "morphTarget": "viseme_sil", "intensity": 0.3, "smoothFactor": 0.3 },      // Silence
@@ -45,11 +48,16 @@ export const READY_PLAYER_ME_VISEME_MAP: ReadyPlayerMeVisemeMap = {
  * 🎯 OFFICIAL AZURE MAPPING: Maps Azure TTS viseme ID to Ready Player Me viseme data
  * Based on official Azure AI Speech Service viseme specification with IPA phonemes
  * @param azureVisemeId - Azure TTS viseme ID (0-21 official range)
+ * 🎯 OFFICIAL AZURE MAPPING: Maps Azure TTS viseme ID to Ready Player Me viseme data
+ * Based on official Azure AI Speech Service viseme specification with IPA phonemes
+ * @param azureVisemeId - Azure TTS viseme ID (0-21 official range)
  * @returns VisemeMapping with morphTarget, intensity, and smoothFactor
  */
 export function mapAzureVisemeToReadyPlayerMe(azureVisemeId: number): VisemeMapping {
   const visemeMapping = READY_PLAYER_ME_VISEME_MAP[azureVisemeId.toString()];
   if (!visemeMapping) {
+    console.warn(`[VisemeMapper] Unknown Azure viseme ID: ${azureVisemeId}, falling back to silence. Official Azure range: 0-21 with IPA phonemes`);
+    return { "morphTarget": "viseme_sil", "intensity": 0.1, "smoothFactor": 0.2 };
     console.warn(`[VisemeMapper] Unknown Azure viseme ID: ${azureVisemeId}, falling back to silence. Official Azure range: 0-21 with IPA phonemes`);
     return { "morphTarget": "viseme_sil", "intensity": 0.1, "smoothFactor": 0.2 };
   }

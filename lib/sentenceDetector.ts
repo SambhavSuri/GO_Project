@@ -1,41 +1,38 @@
-// Utility for detecting complete sentences in streaming text
+// Utility for detecting complete paragraphs in streaming text
 export class SentenceDetector {
   private buffer: string = '';
-  private sentenceEndRegex = /[.!?]+\s+|[.!?]+$/;
-  private minSentenceLength = 6; // Reduced for more responsive TTS
+  private paragraphEndRegex = /\n\s*\n/; // Paragraph ends with double newline
+  private minParagraphLength = 10; // Minimum length for a paragraph
   
-  // Add chunk to buffer and extract complete sentences
+  // Add chunk to buffer and extract complete paragraphs
   addChunk(chunk: string): string[] {
     this.buffer += chunk;
-    return this.extractCompleteSentences();
+    return this.extractCompleteParagraphs();
   }
   
-  // Extract complete sentences from buffer
-  private extractCompleteSentences(): string[] {
-    const sentences: string[] = [];
+  // Extract complete paragraphs from buffer
+  private extractCompleteParagraphs(): string[] {
+    const paragraphs: string[] = [];
     
-    // Find all sentence boundaries
-    const matches = Array.from(this.buffer.matchAll(/[.!?]+\s*/g));
+    // Split by double newlines to find paragraph boundaries
+    const parts = this.buffer.split(/\n\s*\n/);
     
-    if (matches.length > 0) {
-      let lastEndIndex = 0;
-      
-      for (const match of matches) {
-        const endIndex = match.index! + match[0].length;
-        const sentence = this.buffer.substring(lastEndIndex, endIndex).trim();
+    if (parts.length > 1) {
+      // All parts except the last one are complete paragraphs
+      for (let i = 0; i < parts.length - 1; i++) {
+        const paragraph = parts[i].trim();
         
-        // Only add if it's a meaningful sentence
-        if (sentence.length >= this.minSentenceLength) {
-          sentences.push(sentence);
-          lastEndIndex = endIndex;
+        // Only add if it's a meaningful paragraph
+        if (paragraph.length >= this.minParagraphLength) {
+          paragraphs.push(paragraph);
         }
       }
       
-      // Keep the remaining text in buffer
-      this.buffer = this.buffer.substring(lastEndIndex);
+      // Keep the last part (incomplete paragraph) in buffer
+      this.buffer = parts[parts.length - 1];
     }
     
-    return sentences;
+    return paragraphs;
   }
   
   // Get any remaining text (call when streaming is complete)
@@ -56,7 +53,7 @@ export class SentenceDetector {
   }
 }
 
-// Utility for managing TTS queue with sentence buffering and session management
+// Utility for managing TTS queue with paragraph buffering and session management
 export class TTSQueueManager {
   private ttsQueue: string[] = [];
   private audioQueue: ArrayBuffer[] = [];
@@ -78,19 +75,19 @@ export class TTSQueueManager {
     this.onSessionEnd = onSessionEnd;
   }
   
-  // Add sentence to queue
-  addToQueue(sentence: string): void {
-    if (sentence.trim()) {
-      console.log('[TTSQueue] 📝 Adding sentence to queue:', sentence.substring(0, 50) + '...');
+  // Add paragraph to queue
+  addToQueue(paragraph: string): void {
+    if (paragraph.trim()) {
+      console.log('[TTSQueue] 📝 Adding paragraph to queue:', paragraph.substring(0, 50) + '...');
       
-      // Start session if this is the first sentence
+      // Start session if this is the first paragraph
       if (!this.sessionActive && this.onSessionStart) {
         console.log('[TTSQueue] 🎬 Starting TTS session');
         this.sessionActive = true;
         this.onSessionStart();
       }
       
-      this.ttsQueue.push(sentence);
+      this.ttsQueue.push(paragraph);
       this.processQueue();
     }
   }
@@ -103,20 +100,20 @@ export class TTSQueueManager {
     
     this.isProcessing = true;
     
-    // Process sentences one at a time completely
+    // Process paragraphs one at a time completely
     while (this.ttsQueue.length > 0 && !this.abortController?.signal.aborted) {
-      const sentence = this.ttsQueue.shift()!;
+      const paragraph = this.ttsQueue.shift()!;
       
       try {
-        console.log('[TTSQueue] 🎵 Starting sequential TTS for:', sentence.substring(0, 50) + '...');
-        console.log('[TTSQueue] Queue status:', this.ttsQueue.length, 'remaining sentences');
+        console.log('[TTSQueue] 🎵 Starting sequential TTS for paragraph:', paragraph.substring(0, 50) + '...');
+        console.log('[TTSQueue] Queue status:', this.ttsQueue.length, 'remaining paragraphs');
         
-        // Process this sentence completely before moving to the next
-        await this.onSpeakCallback(sentence);
-        console.log('[TTSQueue] ✅ Sentence completed, moving to next');
+        // Process this paragraph completely before moving to the next
+        await this.onSpeakCallback(paragraph);
+        console.log('[TTSQueue] ✅ Paragraph completed, moving to next');
         
       } catch (error) {
-        console.error('[TTSQueue] ❌ Error processing sentence:', error);
+        console.error('[TTSQueue] ❌ Error processing paragraph:', error);
       }
     }
     
