@@ -1,0 +1,45 @@
+diff --git a/node_modules/@lookingglass/webxr-polyfill/src/api/index.js b/node_modules/@lookingglass/webxr-polyfill/src/api/index.js
+index 54c78b6..cc27457 100644
+--- a/node_modules/@lookingglass/webxr-polyfill/src/api/index.js
++++ b/node_modules/@lookingglass/webxr-polyfill/src/api/index.js
+@@ -13,23 +13,23 @@
+  * limitations under the License.
+  */
+ 
+-import XRSystem from './XRSystem';
+-import XRSession from './XRSession';
+-import XRSessionEvent from './XRSessionEvent';
+-import XRFrame from './XRFrame';
+-import XRView from './XRView';
+-import XRViewport from './XRViewport';
+-import XRViewerPose from './XRViewerPose';
+-import XRInputSource from './XRInputSource';
+-import XRInputSourceEvent from './XRInputSourceEvent';
+-import XRInputSourcesChangeEvent from './XRInputSourcesChangeEvent';
+-import XRWebGLLayer from './XRWebGLLayer';
+-import XRSpace from './XRSpace';
+-import XRReferenceSpace from './XRReferenceSpace';
+-import XRReferenceSpaceEvent from './XRReferenceSpaceEvent';
+-import XRRenderState from './XRRenderState';
+-import XRRigidTransform from './XRRigidTransform';
+-import XRPose from './XRPose';
++import XRSystem from './XRSystem.js';
++import XRSession from './XRSession.js';
++import XRSessionEvent from './XRSessionEvent.js';
++import XRFrame from './XRFrame.js';
++import XRView from './XRView.js';
++import XRViewport from './XRViewport.js';
++import XRViewerPose from './XRViewerPose.js';
++import XRInputSource from './XRInputSource.js';
++import XRInputSourceEvent from './XRInputSourceEvent.js';
++import XRInputSourcesChangeEvent from './XRInputSourcesChangeEvent.js';
++import XRWebGLLayer from './XRWebGLLayer.js';
++import XRSpace from './XRSpace.js';
++import XRReferenceSpace from './XRReferenceSpace.js';
++import XRReferenceSpaceEvent from './XRReferenceSpaceEvent.js';
++import XRRenderState from './XRRenderState.js';
++import XRRigidTransform from './XRRigidTransform.js';
++import XRPose from './XRPose.js';
+ 
+ /**
+  * Everything exposed here will also be attached to the window

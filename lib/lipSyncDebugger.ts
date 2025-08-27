@@ -26,8 +26,8 @@ export class LipSyncDebugger {
         const skinnedMesh = child as THREE.SkinnedMesh;
         const morphTargets = skinnedMesh.morphTargetDictionary;
         
-        console.log(`[LipSyncDebugger] Found mesh with morph targets: ${child.name}`);
-        console.log('[LipSyncDebugger] Available morph targets:', Object.keys(morphTargets));
+        // console.log(`[LipSyncDebugger] Found mesh with morph targets: ${child.name}`);
+        // console.log('[LipSyncDebugger] Available morph targets:', Object.keys(morphTargets));
 
         // Store all found morph targets
         Object.entries(morphTargets).forEach(([name, index]) => {
@@ -58,10 +58,10 @@ export class LipSyncDebugger {
       }
     });
 
-    console.log('[LipSyncDebugger] ✅ Ready Player Me Viseme Check Results:');
-    console.log(`[LipSyncDebugger] Found: ${found.length}/${requiredVisemes.length} visemes`);
-    console.log('[LipSyncDebugger] Missing visemes:', missing);
-    console.log('[LipSyncDebugger] Found visemes:', found);
+    // console.log('[LipSyncDebugger] ✅ Ready Player Me Viseme Check Results:');
+    // console.log(`[LipSyncDebugger] Found: ${found.length}/${requiredVisemes.length} visemes`);
+    // console.log('[LipSyncDebugger] Missing visemes:', missing);
+    // console.log('[LipSyncDebugger] Found visemes:', found);
 
     return { missing, found, total: requiredVisemes.length };
   }
@@ -159,8 +159,8 @@ export class LipSyncDebugger {
       }
     });
 
-    console.log('[LipSyncDebugger] 🔍 Alternative viseme patterns found:', alternatives);
-    console.log('[LipSyncDebugger] 💡 Suggestions for missing visemes:', Object.fromEntries(suggestions));
+      // console.log('[LipSyncDebugger] 🔍 Alternative viseme patterns found:', alternatives);
+      // console.log('[LipSyncDebugger] 💡 Suggestions for missing visemes:', Object.fromEntries(suggestions));
 
     return { alternatives, suggestions };
   }

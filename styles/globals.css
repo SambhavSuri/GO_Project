@@ -2,62 +2,188 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Custom scrollbar styles */
+/* CSS Custom Properties for Professional Theme */
+:root {
+  --color-primary: #3b82f6;
+  --color-primary-hover: #2563eb;
+  --color-secondary: #8b5cf6;
+  --color-accent: #10b981;
+  --color-surface: #ffffff;
+  --color-background: #f8fafc;
+  --color-text-primary: #1f2937;
+  --color-text-secondary: #6b7280;
+  --color-border: #e5e7eb;
+  --shadow-soft: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+  --shadow-medium: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --shadow-large: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  --radius-small: 0.5rem;
+  --radius-medium: 0.75rem;
+  --radius-large: 1rem;
+  --radius-xl: 1.5rem;
+  --transition-fast: 150ms ease-in-out;
+  --transition-medium: 300ms ease-in-out;
+  --transition-slow: 500ms ease-in-out;
+}
+
+/* Enhanced scrollbar styles */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #f1f1f1;
-  border-radius: 4px;
+  background: transparent;
+  border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #888;
-  border-radius: 4px;
+  background: rgba(156, 163, 175, 0.5);
+  border-radius: 3px;
+  transition: background var(--transition-fast);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #555;
+  background: rgba(107, 114, 128, 0.7);
 }
 
-/* Custom styles for audio visualization */
+/* Scrollbar utilities */
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(156, 163, 175, 0.5) transparent;
+}
+
+.scrollbar-thumb-gray-300 {
+  scrollbar-color: rgba(209, 213, 219, 0.8) transparent;
+}
+
+.scrollbar-track-transparent {
+  scrollbar-color: rgba(156, 163, 175, 0.5) transparent;
+}
+
+/* Enhanced audio visualization */
 .audio-wave {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 2px;
+  gap: 3px;
+  padding: 8px 12px;
 }
 
 .audio-wave-bar {
   width: 3px;
-  height: 20px;
+  height: 16px;
   background: currentColor;
-  animation: wave 1.2s ease-in-out infinite;
+  border-radius: 2px;
+  animation: wave 1.5s ease-in-out infinite;
+  opacity: 0.8;
 }
 
-.audio-wave-bar:nth-child(2) {
-  animation-delay: -1.1s;
-}
-
-.audio-wave-bar:nth-child(3) {
-  animation-delay: -1.0s;
-}
-
-.audio-wave-bar:nth-child(4) {
-  animation-delay: -0.9s;
-}
-
-.audio-wave-bar:nth-child(5) {
-  animation-delay: -0.8s;
-}
+.audio-wave-bar:nth-child(1) { animation-delay: -1.4s; }
+.audio-wave-bar:nth-child(2) { animation-delay: -1.2s; }
+.audio-wave-bar:nth-child(3) { animation-delay: -1.0s; }
+.audio-wave-bar:nth-child(4) { animation-delay: -0.8s; }
+.audio-wave-bar:nth-child(5) { animation-delay: -0.6s; }
 
 @keyframes wave {
-  0%, 40%, 100% {
-    transform: scaleY(0.4);
+  0%, 50%, 100% {
+    transform: scaleY(0.3);
+    opacity: 0.6;
   }
-  20% {
+  25% {
     transform: scaleY(1);
+    opacity: 1;
+  }
+}
+
+/* Professional button enhancements */
+.btn-primary {
+  @apply bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold px-6 py-3 rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5;
+}
+
+.btn-secondary {
+  @apply bg-white border border-gray-300 hover:border-gray-400 text-gray-700 font-medium px-6 py-3 rounded-xl transition-all duration-200 shadow-sm hover:shadow-md;
+}
+
+/* Chat bubble animations */
+.message-enter {
+  animation: messageSlideIn 0.3s ease-out;
+}
+
+@keyframes messageSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Loading states */
+.loading-dots {
+  display: inline-flex;
+  gap: 2px;
+}
+
+.loading-dots > div {
+  width: 4px;
+  height: 4px;
+  background: currentColor;
+  border-radius: 50%;
+  animation: loadingDots 1.4s ease-in-out infinite both;
+}
+
+.loading-dots > div:nth-child(1) { animation-delay: -0.32s; }
+.loading-dots > div:nth-child(2) { animation-delay: -0.16s; }
+
+@keyframes loadingDots {
+  0%, 80%, 100% {
+    transform: scale(0.8);
+    opacity: 0.5;
+  }
+  40% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* Glass morphism effects */
+.glass {
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.glass-dark {
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  background: rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Professional focus states */
+*:focus {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* Smooth transitions for layout changes */
+* {
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke, opacity, box-shadow, transform, filter, backdrop-filter;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+
+/* Mobile optimizations */
+@media (max-width: 768px) {
+  .audio-wave {
+    padding: 6px 8px;
+  }
+  
+  .audio-wave-bar {
+    width: 2px;
+    height: 12px;
   }
 }

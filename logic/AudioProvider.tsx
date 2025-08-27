@@ -71,6 +71,9 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // 🎯 STREAMLINED: Direct viseme callback - no wrapper objects
   const onVisemeRef = useRef<((visemeId: number, offset: number) => void) | null>(null);
+  
+  // 🎯 VISEME CANCELLATION: Callback to cancel scheduled visemes
+  const cancelScheduledVisemesRef = useRef<(() => void) | null>(null);
 
   // Get TTS functions - this will work now because we're not in a circular dependency
   const ttsFunctions = useDeepgramTTS(
@@ -98,10 +101,10 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     },
     // 🎯 STREAMLINED: Direct viseme forwarding - no object creation
     (visemeId: number, offset: number) => {
-      console.log('[AudioProvider] 🚀 Direct viseme received:', visemeId, 'at offset:', offset + 'ms');
+      //console.log('[AudioProvider] 🚀 Direct viseme received:', visemeId, 'at offset:', offset + 'ms');
       // Call the direct viseme callback if it exists
       if (onVisemeRef.current) {
-        console.log('[AudioProvider] 🎯 Passing direct viseme to avatar:', visemeId);
+        //console.log('[AudioProvider] 🎯 Passing direct viseme to avatar:', visemeId);
         onVisemeRef.current(visemeId, offset);
       } else {
         console.log('[AudioProvider] No direct viseme callback registered');
@@ -290,6 +293,18 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       onVisemeRef.current = callback;
     },
     
+    // 🎯 VISEME CANCELLATION: Register callback to cancel scheduled visemes
+    onCancelScheduledVisemes: (callback: () => void) => {
+      cancelScheduledVisemesRef.current = callback;
+    },
+    
+    // 🎯 VISEME CANCELLATION: Function to cancel scheduled visemes
+    cancelScheduledVisemes: () => {
+      if (cancelScheduledVisemesRef.current) {
+        cancelScheduledVisemesRef.current();
+      }
+    },
+    
     // Override avatar methods for audio-only mode
     startAvatarSession: () => {
       console.log('[AudioProvider] startAvatarSession called - no-op for audio mode');
@@ -321,7 +336,7 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     speakText,
     ttsFunctions.stopSpeaking,
     initializeAudioContext
-    // Note: onAudioChunkFinished is not in dependencies as it's a stable function
+    // Note: onAudioChunkFinished and onCancelScheduledVisemes are not in dependencies as they're stable functions
   ]);
 
   return (

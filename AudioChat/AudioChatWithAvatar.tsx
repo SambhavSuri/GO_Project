@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useAudioVoiceChat } from "../logic/audio";
 import { useAudioContext } from "../logic/AudioProvider";
-import { Loader2 } from "lucide-react";
+import { Loader2, MessageSquare, X } from "lucide-react";
 import { AudioAvatarControls } from "./AudioAvatarControls";
 import { AudioMessageHistory } from "./AudioMessageHistory";
 import { VRMAvatar } from "../components/VRMAvatar/VRMAvatar";
@@ -18,6 +18,7 @@ export function AudioChatWithAvatar() {
   const [selectedModel, setSelectedModel] = useState('/static/assets/6891a06aece5d61d2d726697.glb');
   const [showStartButton, setShowStartButton] = useState(true);
   const [lookingGlassEnabled, setLookingGlassEnabled] = useState(false);
+  const [isChatExpanded, setIsChatExpanded] = useState(false);
   const welcomeMessageRef = useRef<string | null>(null);
   const hasSentWelcomeRef = useRef(false);
   const lookingGlassWindowRef = useRef<Window | null>(null);
@@ -255,28 +256,13 @@ export function AudioChatWithAvatar() {
       }
     };
     
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'hidden') {
-        console.log('[AudioChatWithAvatar] Page hidden - stopping all audio');
-        isPageClosing = true;
-        // Stop any ongoing speech synthesis
-        if ('speechSynthesis' in window) {
-          speechSynthesis.cancel();
-        }
-        // Force stop any Deepgram audio
-        if (context?.stopSpeaking) {
-          context.stopSpeaking(true);
-        }
-      }
-    };
+
     
     window.addEventListener('beforeunload', handleBeforeUnload);
-    document.addEventListener('visibilitychange', handleVisibilityChange);
     
     return () => {
       console.log('[AudioChatWithAvatar] Component unmounting - stopping all audio');
       window.removeEventListener('beforeunload', handleBeforeUnload);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
       
       // Only force stop if page is actually closing
       if (isPageClosing) {
@@ -297,126 +283,172 @@ export function AudioChatWithAvatar() {
   const shouldDisableButtons = isInitializing || isWelcomeSpeaking || isAvatarTalking;
 
   return (
-    <div className="w-full flex flex-row gap-4 h-full">
-      {/* Left side - Avatar and Controls */}
-      <div className="flex flex-col rounded-xl bg-white border border-gray-200 overflow-hidden flex-1">
-        <div className="relative w-full aspect-video flex flex-col items-center justify-center bg-gray-50 ">
-          {showStartButton ? (
-            <div className="w-full h-full flex flex-col items-center justify-center p-8 text-gray-600">
-              <div className="flex flex-col items-center space-y-4">
-                <h2 className="text-2xl font-bold text-gray-800">AI Avatar Assistant</h2>
-                <p className="text-gray-600 text-center max-w-md">
-                  Click the button below to start your audio session with the AI assistant
+    <div className="h-full flex flex-col lg:flex-row gap-6 relative">
+      {/* Main Content Area - 3D Model Viewer */}
+      <div className="flex-1 lg:w-3/4 flex flex-col">
+        <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden h-full flex flex-col">
+          {/* Model Viewer Header */}
+          <div className="bg-gradient-to-r from-gray-50 to-gray-100 px-6 py-4 border-b border-gray-200">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900">3D Avatar Viewer</h2>
+                <p className="text-sm text-gray-600 mt-1">
+                  {isRecording ? "🎤 Listening..." : 
+                   isWelcomeSpeaking ? "🚀 Initializing..." : 
+                   isAvatarTalking ? "🗣️ AI Speaking..." : 
+                   isProcessingResponse ? "⚙️ Processing..." :
+                   isStarted ? "✅ Ready" : "⏸️ Offline"}
                 </p>
-                <button
-                  onClick={handleStartCall}
-                  className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors duration-200 flex items-center space-x-2"
-                >
-                  <span>📞</span>
-                  <span>Start Call</span>
-                </button>
               </div>
-            </div>
-          ) : !isStarted ? (
-            <div className="w-full h-full flex flex-col items-center justify-center p-8 text-gray-600">
-              <div className="flex items-center space-x-2">
-                <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
-                <span className="text-lg">Starting AI Avatar Assistant...</span>
-              </div>
-            </div>
-          ) : (
-            <div className="w-full h-full relative">
-              {/* VRM Avatar Display */}
-              <VRMAvatar 
-                modelUrl={selectedModel}
-                width={800}
-                height={600}
-                onVisemeMirror={(viseme) => {
-                  // Mirror viseme to Looking Glass
-                  mirrorToLookingGlass('viseme', viseme);
-                }}
-              />
               
-              {/* Looking Glass Control Button */}
-              <div className="absolute top-4 right-4 flex flex-col gap-2">
+              {/* Mobile Chat Toggle Button */}
+              <div className="lg:hidden">
                 <button
-                  onClick={handleEnableLookingGlass}
-                  className={`px-4 py-2 rounded-lg font-semibold text-sm transition-all duration-200 shadow-lg ${
-                    lookingGlassEnabled 
-                      ? 'bg-green-600 hover:bg-green-700 text-white' 
-                      : 'bg-purple-600 hover:bg-purple-700 text-white'
-                  }`}
-                  disabled={shouldDisableButtons}
+                  onClick={() => setIsChatExpanded(!isChatExpanded)}
+                  className="flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors duration-200 shadow-sm"
                 >
-                  <div className="flex items-center space-x-2">
-                    <span>{lookingGlassEnabled ? '🔮' : '🔮'}</span>
-                    <span>
-                      {lookingGlassEnabled ? 'Close Looking Glass' : 'Enable Looking Glass'}
-                    </span>
-                  </div>
+                  {isChatExpanded ? <X size={20} /> : <MessageSquare size={20} />}
+                  <span className="text-sm font-medium">
+                    {isChatExpanded ? 'Close Chat' : 'Open Chat'}
+                  </span>
                 </button>
+              </div>
+            </div>
+          </div>
+
+          {/* 3D Model Display Area */}
+          <div className="flex-1 relative bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center">
+            {showStartButton ? (
+              <div className="w-full h-full flex flex-col items-center justify-center p-8 text-gray-600">
+                <div className="flex flex-col items-center space-y-6 max-w-md">
+                  <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center">
+                    <span className="text-3xl">🤖</span>
+                  </div>
+                  <h3 className="text-2xl font-bold text-gray-800 text-center">AI Avatar Assistant</h3>
+                  <p className="text-gray-600 text-center text-lg leading-relaxed">
+                    Start your interactive session with our AI-powered avatar. Experience natural conversation with voice and chat capabilities.
+                  </p>
+                  <button
+                    onClick={handleStartCall}
+                    className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold py-4 px-8 rounded-xl transition-all duration-200 flex items-center space-x-3 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+                  >
+                    <span className="text-xl">📞</span>
+                    <span className="text-lg">Start Session</span>
+                  </button>
+                </div>
+              </div>
+            ) : !isStarted ? (
+              <div className="w-full h-full flex flex-col items-center justify-center p-8 text-gray-600">
+                <div className="flex items-center space-x-3">
+                  <Loader2 className="h-10 w-10 animate-spin text-blue-500" />
+                  <span className="text-xl font-medium">Initializing Avatar...</span>
+                </div>
+                <p className="text-gray-500 mt-4 text-center">Setting up your AI assistant experience</p>
+              </div>
+            ) : (
+              <div className="w-full h-full relative">
+                {/* VRM Avatar Display */}
+                <VRMAvatar 
+                  modelUrl={selectedModel}
+                  width={800}
+                  height={600}
+                  onVisemeMirror={(viseme) => {
+                    // Mirror viseme to Looking Glass
+                    mirrorToLookingGlass('viseme', viseme);
+                  }}
+                />
                 
-                {lookingGlassEnabled && (
-                  <div className="bg-green-100 border border-green-400 text-green-700 px-3 py-1 rounded text-xs text-center">
-                    ✅ Syncing to Looking Glass
-                  </div>
-                )}
+                {/* Looking Glass Control Button */}
+                <div className="absolute top-6 right-6 flex flex-col gap-3">
+                  <button
+                    onClick={handleEnableLookingGlass}
+                    className={`px-4 py-3 rounded-xl font-semibold text-sm transition-all duration-200 shadow-lg backdrop-blur-sm ${
+                      lookingGlassEnabled 
+                        ? 'bg-green-600/90 hover:bg-green-700/90 text-white border border-green-500' 
+                        : 'bg-purple-600/90 hover:bg-purple-700/90 text-white border border-purple-500'
+                    }`}
+                    disabled={shouldDisableButtons}
+                  >
+                    <div className="flex items-center space-x-2">
+                      <span>{lookingGlassEnabled ? '🔮' : '🔮'}</span>
+                      <span>
+                        {lookingGlassEnabled ? 'Close Looking Glass' : 'Enable Looking Glass'}
+                      </span>
+                    </div>
+                  </button>
+                  
+                  {lookingGlassEnabled && (
+                    <div className="bg-green-100/90 backdrop-blur-sm border border-green-400 text-green-700 px-3 py-2 rounded-lg text-xs text-center font-medium">
+                      ✅ Syncing to Looking Glass
+                    </div>
+                  )}
+                </div>
               </div>
-              
-              {/* Avatar Model Selector */}
-              {/* <div className="absolute top-4 right-4 bg-white bg-opacity-90 rounded-lg p-2">
-                <select 
-                  value={selectedModel}
-                  onChange={(e) => setSelectedModel(e.target.value)}
-                  className="text-sm px-2 py-1 border border-gray-300 rounded"
-                  disabled={shouldDisableButtons}
-                >
-                  {availableModels.map((model) => (
-                    <option key={model.path} value={model.path}>
-                      {model.name}
-                    </option>
-                  ))}
-                </select>
-              </div> */}
-              
-              {/* Status Overlay */}
-              {/* <div className="absolute bottom-4 left-4 bg-black bg-opacity-50 text-white px-4 py-2 rounded-lg">
-                <h3 className="text-sm font-semibold mb-1">
-                  {isRecording ? "Listening..." : 
-                   isWelcomeSpeaking ? "Initializing..." : 
-                   isAvatarTalking ? "AI Speaking..." : 
-                   isProcessingResponse ? "Processing..." :
-                   "Ready"}
-                </h3>
-                {showStartTalkingPrompt && !shouldDisableButtons && (
-                  <p className="text-green-400 text-xs">Start talking...</p>
-                )}
-              </div> */}
-            </div>
-          )}
-        </div>
-        
-        <div className="flex flex-col gap-3 items-center justify-center p-4 border-t border-gray-200 w-full bg-white">
-          {isStarted ? (
-            <div className="w-full">
-              <AudioAvatarControls />
-            </div>
-          ) : null}
+            )}
+          </div>
+
+          {/* Controls Area */}
+          <div className="bg-white border-t border-gray-200 px-6 py-4">
+            {isStarted && (
+              <div className="flex justify-center">
+                <AudioAvatarControls />
+              </div>
+            )}
+          </div>
         </div>
       </div>
       
-      {/* Right side - Chat History */}
-      <div className={`w-80 flex flex-col h-full ${isStarted ? '!min-h-[85vh] !max-h-[85vh]' : ''}`}>
-        {isStarted ? (
-          <div className="flex-1 bg-white rounded-lg border border-gray-200 overflow-hidden !overflow-y-auto">
-            <AudioMessageHistory />
+      {/* Chat Panel - Desktop: Side Panel, Mobile: Expandable Overlay */}
+      <div className={`
+        lg:w-1/4 lg:min-w-[320px] lg:max-w-[400px] 
+        ${isChatExpanded ? 'block' : 'hidden lg:block'}
+        ${isChatExpanded ? 'fixed inset-x-4 top-20 bottom-4 z-50 lg:relative lg:inset-auto lg:top-auto lg:bottom-auto lg:z-auto' : ''}
+      `}>
+        <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden h-full flex flex-col">
+          {/* Chat Header */}
+          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-6 py-4 border-b border-gray-200">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Assistant</h3>
+                <p className="text-sm text-gray-600">Chat History</p>
+              </div>
+              {/* Mobile close button */}
+              <div className="lg:hidden">
+                <button
+                  onClick={() => setIsChatExpanded(false)}
+                  className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+            </div>
           </div>
-        ) : (
-          <div className="flex-1 bg-white rounded-lg border border-gray-200 flex items-center justify-center">
-            <p className="text-gray-500 text-sm">Chat will appear here once connected</p>
+
+          {/* Chat Content */}
+          <div className="flex-1 min-h-0">
+            {isStarted ? (
+              <AudioMessageHistory />
+            ) : (
+              <div className="h-full flex items-center justify-center p-6">
+                <div className="text-center">
+                  <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <MessageSquare size={24} className="text-gray-400" />
+                  </div>
+                  <p className="text-gray-500 text-sm">Chat will appear here once you start a session</p>
+                </div>
+              </div>
+            )}
           </div>
-        )}
+        </div>
       </div>
+
+      {/* Mobile Chat Overlay Background */}
+      {isChatExpanded && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+          onClick={() => setIsChatExpanded(false)}
+        />
+      )}
     </div>
   );
 }

@@ -569,7 +569,7 @@ export class LipSyncDebugger {
       return;
     }
 
-    console.log('[LipSyncDebugger] 🔍 Scanning model for morph targets...');
+    //console.log('[LipSyncDebugger] 🔍 Scanning model for morph targets...');
     this.foundMorphTargets.clear();
 
     this.model.traverse((child) => {
@@ -577,8 +577,8 @@ export class LipSyncDebugger {
         const skinnedMesh = child as THREE.SkinnedMesh;
         const morphTargets = skinnedMesh.morphTargetDictionary;
         
-        console.log(`[LipSyncDebugger] Found mesh with morph targets: ${child.name}`);
-        console.log('[LipSyncDebugger] Available morph targets:', Object.keys(morphTargets));
+        // console.log(`[LipSyncDebugger] Found mesh with morph targets: ${child.name}`);
+        // console.log('[LipSyncDebugger] Available morph targets:', Object.keys(morphTargets));
 
         // Store all found morph targets
         Object.entries(morphTargets).forEach(([name, index]) => {
@@ -587,7 +587,7 @@ export class LipSyncDebugger {
       }
     });
 
-    console.log(`[LipSyncDebugger] Total morph targets found: ${this.foundMorphTargets.size}`);
+    //console.log(`[LipSyncDebugger] Total morph targets found: ${this.foundMorphTargets.size}`);
   }
 
   // Check if Ready Player Me visemes exist on the model
@@ -609,10 +609,10 @@ export class LipSyncDebugger {
       }
     });
 
-    console.log('[LipSyncDebugger] ✅ Ready Player Me Viseme Check Results:');
-    console.log(`[LipSyncDebugger] Found: ${found.length}/${requiredVisemes.length} visemes`);
-    console.log('[LipSyncDebugger] Missing visemes:', missing);
-    console.log('[LipSyncDebugger] Found visemes:', found);
+    // console.log('[LipSyncDebugger] ✅ Ready Player Me Viseme Check Results:');
+    // console.log(`[LipSyncDebugger] Found: ${found.length}/${requiredVisemes.length} visemes`);
+    // console.log('[LipSyncDebugger] Missing visemes:', missing);
+    // console.log('[LipSyncDebugger] Found visemes:', found);
 
     return { missing, found, total: requiredVisemes.length };
   }
@@ -621,7 +621,7 @@ export class LipSyncDebugger {
   testViseme(visemeName: string, intensity: number = 1.0): boolean {
     const target = this.foundMorphTargets.get(visemeName);
     if (!target) {
-      console.error(`[LipSyncDebugger] ❌ Viseme '${visemeName}' not found on model`);
+      //console.error(`[LipSyncDebugger] ❌ Viseme '${visemeName}' not found on model`);
       return false;
     }
 
@@ -632,11 +632,11 @@ export class LipSyncDebugger {
       
       // Set the target viseme
       mesh.morphTargetInfluences[index] = intensity;
-      console.log(`[LipSyncDebugger] ✅ Testing '${visemeName}' at intensity ${intensity}`);
+      //console.log(`[LipSyncDebugger] ✅ Testing '${visemeName}' at intensity ${intensity}`);
       return true;
     }
 
-    console.error(`[LipSyncDebugger] ❌ Could not apply '${visemeName}' - morph target influences not available`);
+    //console.error(`[LipSyncDebugger] ❌ Could not apply '${visemeName}' - morph target influences not available`);
     return false;
   }
 

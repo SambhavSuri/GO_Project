@@ -115,6 +115,9 @@ export const useAzureTTS = (
     console.log('[AzureTTS] 🔄 Resetting interruption state for new TTS request');
     resetInterruptionState();
     
+    // Wait a small amount of time for the state update to propagate to the ref
+    await new Promise(resolve => setTimeout(resolve, 50));
+    
     // Initialize audio buffer manager if not already done
     initAudioBufferManager();
     
@@ -192,13 +195,13 @@ export const useAzureTTS = (
               },
               // 🎯 STREAMLINED: Direct viseme callback - no wrapper objects!
               onVisemeRef.current ? (visemeId: number, offset: number) => {
-                console.log('[AzureTTS] 🚀 Direct viseme from Speech SDK:', visemeId, 'at', offset + 'ms');
+                //console.log('[AzureTTS] 🚀 Direct viseme from Speech SDK:', visemeId, 'at', offset + 'ms');
                 if (onVisemeRef.current) {
                   // Pass directly to VRMAvatar - no intermediate objects!
                   onVisemeRef.current(visemeId, offset);
                 }
               } : undefined,
-              // onComplete
+              // onComplete 
               async () => {
                 console.log('[AzureTTS] Speech SDK TTS completed, processing', audioChunks.length, 'audio chunks');
                 

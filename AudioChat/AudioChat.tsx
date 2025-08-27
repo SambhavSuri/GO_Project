@@ -209,16 +209,12 @@ export function AudioChat() {
     
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'hidden') {
-        console.log('[AudioChat] Page hidden - stopping all audio');
-        isPageClosing = true;
-        // Stop any ongoing speech synthesis
-        if ('speechSynthesis' in window) {
-          speechSynthesis.cancel();
-        }
-        // Force stop any Deepgram audio
-        if (context?.stopSpeaking) {
-          context.stopSpeaking(true);
-        }
+        console.log('[AudioChat] Page hidden - keeping all connections alive (Deepgram, TTS, STT, animations)');
+        // Keep everything running - no stopping of any connections
+        // Let useAudioVoiceChat.ts handle visibility properly
+      } else if (document.visibilityState === 'visible') {
+        console.log('[AudioChat] Page visible again - all connections still active');
+        // Page is visible again, everything should still be connected and working
       }
     };
     

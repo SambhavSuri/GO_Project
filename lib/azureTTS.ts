@@ -84,8 +84,8 @@ export async function azureSpeechSDKTTS(
           
           // 🚨 DETAILED AZURE VISEME LOGGING
           const phoneme = azureVisemeReference[e.visemeId] || 'unknown';
-          console.log(`🔥 [Azure Speech SDK] VISEME RECEIVED: ID=${e.visemeId} (${phoneme}) at ${offsetMs.toFixed(1)}ms`);
-          console.log(`🎯 [Azure Speech SDK] Viseme Details: {id: ${e.visemeId}, phoneme: "${phoneme}", offset: ${offsetMs.toFixed(1)}ms, timestamp: ${Date.now()}}`);
+          // console.log(`🔥 [Azure Speech SDK] VISEME RECEIVED: ID=${e.visemeId} (${phoneme}) at ${offsetMs.toFixed(1)}ms`);
+          // console.log(`🎯 [Azure Speech SDK] Viseme Details: {id: ${e.visemeId}, phoneme: "${phoneme}", offset: ${offsetMs.toFixed(1)}ms, timestamp: ${Date.now()}}`);
           
           // 🚀 DIRECT: Pass viseme immediately for perfect sync
           onDirectViseme(e.visemeId, offsetMs);
@@ -116,8 +116,8 @@ export async function azureSpeechSDKTTS(
           if (onDirectViseme) {
             console.log('[Speech SDK] 🔒 Sending final silence viseme for natural lip closure');
             // Log complete viseme sequence for analysis
-            console.log(`📈 [Azure Speech SDK] COMPLETE VISEME SEQUENCE: ${visemeSequence.map(v => `${v.id}(${azureVisemeReference[v.id] || '?'})@${v.offset.toFixed(0)}ms`).join(', ')}`);
-            console.log(`📊 [Azure Speech SDK] Total visemes received: ${visemeSequence.length}`);
+            //console.log(`📈 [Azure Speech SDK] COMPLETE VISEME SEQUENCE: ${visemeSequence.map(v => `${v.id}(${azureVisemeReference[v.id] || '?'})@${v.offset.toFixed(0)}ms`).join(', ')}`);
+            //console.log(`📊 [Azure Speech SDK] Total visemes received: ${visemeSequence.length}`);
             
             // Send silence viseme with slight delay to ensure natural closure
             setTimeout(() => {

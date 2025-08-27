@@ -43,7 +43,7 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
   const [modelType, setModelType] = useState<'vrm' | 'glb'>('glb');
   
   // Get audio context for syncing with speech
-  const { isAvatarTalking, isProcessingResponse, onGLBAudioStart, onViseme } = useAudioContext();
+  const { isAvatarTalking, isProcessingResponse, onGLBAudioStart, onViseme, onCancelScheduledVisemes } = useAudioContext();
   
   // Speaking animation state for GLB models
   const speakingIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -114,22 +114,22 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
       return;
     }
 
-    console.log(`🎭 [VRMAvatar] ====== TTS VISEME SUMMARY ======`);
-    console.log(`📊 [VRMAvatar] Total visemes played: ${playedVisemesRef.current.length}`);
-    console.log(`⏱️  [VRMAvatar] Session duration: ${playedVisemesRef.current[playedVisemesRef.current.length - 1].offset - playedVisemesRef.current[0].offset}ms`);
+    // console.log(`🎭 [VRMAvatar] ====== TTS VISEME SUMMARY ======`);
+    // console.log(`📊 [VRMAvatar] Total visemes played: ${playedVisemesRef.current.length}`);
+    // console.log(`⏱️  [VRMAvatar] Session duration: ${playedVisemesRef.current[playedVisemesRef.current.length - 1].offset - playedVisemesRef.current[0].offset}ms`);
     
-    // Create summary table
-    console.log(`🗺️  [VRMAvatar] COMPLETE VISEME MAPPING SEQUENCE:`);
-    playedVisemesRef.current.forEach((viseme, index) => {
-      const phonemeMap: {[key: number]: string} = {
-        0: 'silence', 1: 'æ,ə,ʌ', 2: 'ɑ', 3: 'ɔ', 4: 'ɛ,ʊ', 5: 'ɝ', 
-        6: 'j,i,ɪ', 7: 'w,u', 8: 'o', 9: 'aʊ', 10: 'ɔɪ', 11: 'aɪ', 
-        12: 'h', 13: 'ɹ', 14: 'l', 15: 's,z', 16: 'ʃ,tʃ,dʒ,ʒ', 17: 'ð', 
-        18: 'f,v', 19: 'd,t,n,θ', 20: 'k,g,ŋ', 21: 'p,b,m'
-      };
-      const phoneme = phonemeMap[viseme.azureId] || 'unknown';
-      console.log(`   ${index + 1}. Azure ID ${viseme.azureId} (${phoneme}) → "${viseme.readyPlayerMe}" (${(viseme.intensity * 100).toFixed(0)}%) @ ${viseme.offset.toFixed(0)}ms`);
-    });
+    // // Create summary table
+    // console.log(`🗺️  [VRMAvatar] COMPLETE VISEME MAPPING SEQUENCE:`);
+    // playedVisemesRef.current.forEach((viseme, index) => {
+    //   const phonemeMap: {[key: number]: string} = {
+    //     0: 'silence', 1: 'æ,ə,ʌ', 2: 'ɑ', 3: 'ɔ', 4: 'ɛ,ʊ', 5: 'ɝ', 
+    //     6: 'j,i,ɪ', 7: 'w,u', 8: 'o', 9: 'aʊ', 10: 'ɔɪ', 11: 'aɪ', 
+    //     12: 'h', 13: 'ɹ', 14: 'l', 15: 's,z', 16: 'ʃ,tʃ,dʒ,ʒ', 17: 'ð', 
+    //     18: 'f,v', 19: 'd,t,n,θ', 20: 'k,g,ŋ', 21: 'p,b,m'
+    //   };
+    //   const phoneme = phonemeMap[viseme.azureId] || 'unknown';
+    //   console.log(`   ${index + 1}. Azure ID ${viseme.azureId} (${phoneme}) → "${viseme.readyPlayerMe}" (${(viseme.intensity * 100).toFixed(0)}%) @ ${viseme.offset.toFixed(0)}ms`);
+    // });
     
     // Summary statistics
     const uniqueVisemes = Array.from(new Set(playedVisemesRef.current.map(v => v.readyPlayerMe)));
@@ -145,43 +145,55 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
   // 🎯 AUDIO OFFSET TIMING: Track when TTS audio actually starts for proper synchronization
   const audioStartTimeRef = useRef<number | null>(null);
   const scheduledVisemesRef = useRef<Map<number, NodeJS.Timeout>>(new Map());
+  const stopVisemesRef = useRef<boolean>(false);
   
   // 🎯 CLEANUP: Cancel all scheduled visemes (for TTS stop/restart)
   const cancelAllScheduledVisemes = useCallback(() => {
     console.log(`🚫 [TIMING] Cancelling ${scheduledVisemesRef.current.size} scheduled visemes`);
     scheduledVisemesRef.current.forEach((timeout) => {
+      
       clearTimeout(timeout);
+      console.log(`🚫 [TIMING] Cancelled scheduled viseme: ${timeout}`);
     });
     scheduledVisemesRef.current.clear();
+    
+    // 🎯 STOP FLAG SYSTEM: Set stop flag to block all future visemes
+    stopVisemesRef.current = true;
+    console.log('🚫 [VRMAvatar] Stop flag set - all future visemes will be blocked');
+    
     audioStartTimeRef.current = null;
   }, []);
   
   // 🎯 PROPER TIMING: Professional lip sync system with real audioOffset synchronization
   const handleDirectViseme = useCallback((visemeId: number, offset: number) => {
     // 🚨 AZURE VISEME ID LOGGING - Track all Azure Speech Service visemes
-    console.log(`🔥 [VRMAvatar] AZURE VISEME RECEIVED: ID=${visemeId}, offset=${offset}ms`);
-    console.log(`📊 [VRMAvatar] Azure Viseme Stats: {id: ${visemeId}, offset: ${offset}ms, received: ${Date.now()}, modelReady: ${!!modelRef.current}}`);
+    // console.log(`🔥 [VRMAvatar] AZURE VISEME RECEIVED: ID=${visemeId}, offset=${offset}ms`);
+    // console.log(`📊 [VRMAvatar] Azure Viseme Stats: {id: ${visemeId}, offset: ${offset}ms, received: ${Date.now()}, modelReady: ${!!modelRef.current}}`);
     
     // 🚨 ENHANCED DEBUGGING: Check each blocking condition separately
     const modelTypeOK = modelType === 'glb';
     const modelRefOK = !!modelRef.current;
     const animationEnabledOK = visemeAnimationEnabledRef.current;
     
-    console.log(`🔍 [DEBUGGING] Viseme ${visemeId} Checks: modelType='${modelType}'(${modelTypeOK}), modelRef=${modelRefOK}, animEnabled=${animationEnabledOK}`);
+    // console.log(`🔍 [DEBUGGING] Viseme ${visemeId} Checks: modelType='${modelType}'(${modelTypeOK}), modelRef=${modelRefOK}, animEnabled=${animationEnabledOK}`);
     
     if (!modelTypeOK || !modelRefOK || !animationEnabledOK) {
-      console.error(`❌ [VRMAvatar] AZURE VISEME BLOCKED: ID=${visemeId} - modelType=${modelType}(${modelTypeOK}), model=${modelRefOK}, enabled=${animationEnabledOK}`);
+      // console.error(`❌ [VRMAvatar] AZURE VISEME BLOCKED: ID=${visemeId} - modelType=${modelType}(${modelTypeOK}), model=${modelRefOK}, enabled=${animationEnabledOK}`);
       return;
     }
     
-    console.log(`✅ [DEBUGGING] Viseme ${visemeId} PASSED all checks - proceeding with TIMING-BASED application`);
+    // console.log(`✅ [DEBUGGING] Viseme ${visemeId} PASSED all checks - proceeding with TIMING-BASED application`);
     
     
     // 🎯 AUDIO OFFSET TIMING: Schedule viseme based on proper audioOffset timing
     
     // Clear previous scheduled visemes if this is the start of a new TTS session
     if (!currentActiveVisemeRef.current || currentActiveVisemeRef.current.timestamp < Date.now() - 500) {
-      console.log('🔥 [VRMAvatar] New TTS session detected - clearing previous scheduled visemes');
+      // console.log('🔥 [VRMAvatar] New TTS session detected - clearing previous scheduled visemes');
+      
+      // 🎯 STOP FLAG SYSTEM: Reset stop flag for new TTS session
+      stopVisemesRef.current = false;
+      console.log('🔄 [VRMAvatar] Reset stop flag for new TTS session');
       
       // Clear any previously scheduled visemes
       scheduledVisemesRef.current.forEach((timeout) => {
@@ -204,8 +216,8 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
     const readyPlayerMeViseme = convertAzureVisemeToReadyPlayerMe(visemeData, previousVisemeRef.current);
     
     // 🎯 DETAILED AZURE VISEME MAPPING LOGGING
-    console.log(`🗺️ [VRMAvatar] AZURE VISEME MAPPING: ${visemeId} → ${readyPlayerMeViseme.visemeName} (intensity: ${readyPlayerMeViseme.intensity}) SCHEDULED for ${offset}ms`);
-    console.log(`⏰ [VRMAvatar] TIMING: Viseme ${visemeId} will be applied ${offset}ms after audio starts playing`);
+    // console.log(`🗺️ [VRMAvatar] AZURE VISEME MAPPING: ${visemeId} → ${readyPlayerMeViseme.visemeName} (intensity: ${readyPlayerMeViseme.intensity}) SCHEDULED for ${offset}ms`);
+    // console.log(`⏰ [VRMAvatar] TIMING: Viseme ${visemeId} will be applied ${offset}ms after audio starts playing`);
     
     // Mirror to Looking Glass if callback provided  
     if (onVisemeMirror) {
@@ -218,14 +230,14 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
       
       // If audio hasn't started yet, wait for it
       if (!audioStartTimeRef.current) {
-        console.log(`⏰ [VRMAvatar] Audio not started yet - scheduling viseme ${visemeId} for when audio begins + ${offset}ms`);
+        // console.log(`⏰ [VRMAvatar] Audio not started yet - scheduling viseme ${visemeId} for when audio begins + ${offset}ms`);
         
         // Check every 50ms for audio start
         const waitForAudio = setInterval(() => {
           if (audioStartTimeRef.current) {
             clearInterval(waitForAudio);
             const delayMs = Math.max(0, (audioStartTimeRef.current + offset) - Date.now());
-            console.log(`⏰ [VRMAvatar] Audio started! Scheduling viseme ${visemeId} in ${delayMs}ms`);
+            // console.log(`⏰ [VRMAvatar] Audio started! Scheduling viseme ${visemeId} in ${delayMs}ms`);
             
             const timeout = setTimeout(() => {
               applyVisemeAtCorrectTime(visemeId, readyPlayerMeViseme, offset);
@@ -240,7 +252,7 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
       
       // Audio already started - calculate delay from now
       const delayMs = Math.max(0, (audioStartTimeRef.current + offset) - now);
-      console.log(`⏰ [VRMAvatar] Scheduling viseme ${visemeId} in ${delayMs}ms (audio started ${now - audioStartTimeRef.current}ms ago)`);
+      // console.log(`⏰ [VRMAvatar] Scheduling viseme ${visemeId} in ${delayMs}ms (audio started ${now - audioStartTimeRef.current}ms ago)`);
       
       const timeout = setTimeout(() => {
         applyVisemeAtCorrectTime(visemeId, readyPlayerMeViseme, offset);
@@ -251,7 +263,30 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
     
     // 🎯 APPLY VISEME: The actual application function
     const applyVisemeAtCorrectTime = (id: number, viseme: any, originalOffset: number) => {
-      console.log(`🎯 [VRMAvatar] APPLYING TIMED VISEME: ${id} → ${viseme.visemeName} at correct time (${originalOffset}ms offset)`);
+      // console.log(`🎯 [VRMAvatar] APPLYING TIMED VISEME: ${id} → ${viseme.visemeName} at correct time (${originalOffset}ms offset)`);
+      
+      // 🎯 STOP FLAG SYSTEM: Check if visemes should be blocked
+      if (stopVisemesRef.current) {
+        console.log(`🚫 [VRMAvatar] Viseme ${id} blocked by stop flag - setting silence state`);
+        
+        // Set model mouth to silence state when stop flag is active
+        const allVisemes = [
+          'viseme_sil', 'viseme_aa', 'viseme_E', 'viseme_I', 'viseme_O', 'viseme_U',
+          'viseme_PP', 'viseme_FF', 'viseme_TH', 'viseme_DD', 'viseme_kk',
+          'viseme_CH', 'viseme_SS', 'viseme_nn', 'viseme_RR'
+        ];
+        
+        // Set all visemes to 0 except silence
+        allVisemes.forEach(v => {
+          if (v === 'viseme_sil') {
+            setMorphTargetDirect(v, 0.1); // Small silence value for natural lip closure
+          } else {
+            setMorphTargetDirect(v, 0.0); // Clear all other visemes
+          }
+        });
+        
+        return;
+      }
       
       // Clear all visemes first for clean state
       const allVisemes = [
@@ -283,7 +318,7 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
         offset: originalOffset
       });
       
-      console.log(`✅ [VRMAvatar] TIMED VISEME APPLIED: ${viseme.visemeName} at ${enhancedIntensity.toFixed(2)} intensity`);
+      // console.log(`✅ [VRMAvatar] TIMED VISEME APPLIED: ${viseme.visemeName} at ${enhancedIntensity.toFixed(2)} intensity`);
       
       // Clean up this scheduled viseme
       scheduledVisemesRef.current.delete(id);
@@ -296,7 +331,7 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
             playedVisemesRef.current = [];
             currentActiveVisemeRef.current = null;
             audioStartTimeRef.current = null;
-            console.log('🔚 [VRMAvatar] TTS session ended - cleared all timing references');
+            // console.log('🔚 [VRMAvatar] TTS session ended - cleared all timing references');
           }
         }, 1000);
       }
@@ -331,7 +366,7 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
           
           // Only log significant viseme changes to reduce spam
           if (targetName.includes('viseme_') && Math.abs(currentValue - newValue) > 0.01) {
-            console.log(`[VRMAvatar] 👄 ${targetName}: ${currentValue.toFixed(3)} → ${newValue.toFixed(3)} (target: ${value})`);
+            // console.log(`[VRMAvatar] 👄 ${targetName}: ${currentValue.toFixed(3)} → ${newValue.toFixed(3)} (target: ${value})`);
           }
         } else if (targetName.includes('viseme_')) {
           console.warn(`🚨 [VRMAvatar] VISEME NOT FOUND: ${targetName} in mesh with ${Object.keys(skinnedMesh.morphTargetDictionary).length} targets`);
@@ -361,7 +396,7 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
       return; // Skip repeated applications
     }
     
-    console.log(`🎯 [setMorphTargetDirect] STARTING: ${targetName} = ${value.toFixed(3)}`);
+    // console.log(`🎯 [setMorphTargetDirect] STARTING: ${targetName} = ${value.toFixed(3)}`);
     
     // Apply to ALL SkinnedMesh objects for consistent raw mode
     let appliedCount = 0;
@@ -378,7 +413,7 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
           
           // Log significant changes in raw mode
           if (Math.abs(previousValue - value) > 0.1) {
-            console.log(`🚨 [RAW] Direct set ${targetName}[${index}]: ${previousValue.toFixed(2)} → ${value.toFixed(2)}`);
+            // console.log(`🚨 [RAW] Direct set ${targetName}[${index}]: ${previousValue.toFixed(2)} → ${value.toFixed(2)}`);
           }
         }
       }
@@ -388,7 +423,7 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
       console.warn(`⚠️ [RAW] ${targetName} not found in any mesh!`);
     }
     
-    console.log(`✅ [setMorphTargetDirect] COMPLETED: ${targetName} = ${value.toFixed(3)} applied to ${appliedCount} meshes`);
+    // console.log(`✅ [setMorphTargetDirect] COMPLETED: ${targetName} = ${value.toFixed(3)} applied to ${appliedCount} meshes`);
     
     // Track last applied to prevent spam
     lastAppliedVisemeRef.current = { name: targetName, value, timestamp: now };
@@ -407,32 +442,32 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
       };
       (window as any).cancelScheduledVisemes = () => {
         cancelAllScheduledVisemes();
-        console.log('🚫 [DEBUG] Manually cancelled all scheduled visemes');
+        // console.log('🚫 [DEBUG] Manually cancelled all scheduled visemes');
       };
       (window as any).showAudioTiming = () => {
         const audioStart = audioStartTimeRef.current;
         const scheduled = scheduledVisemesRef.current.size;
-        console.log(`⏰ [TIMING DEBUG] Audio start time: ${audioStart ? new Date(audioStart).toISOString() : 'Not set'}`);
-        console.log(`⏰ [TIMING DEBUG] Scheduled visemes: ${scheduled}`);
-        console.log(`⏰ [TIMING DEBUG] Current time: ${Date.now()}`);
+        // console.log(`⏰ [TIMING DEBUG] Audio start time: ${audioStart ? new Date(audioStart).toISOString() : 'Not set'}`);
+        // console.log(`⏰ [TIMING DEBUG] Scheduled visemes: ${scheduled}`);
+        // console.log(`⏰ [TIMING DEBUG] Current time: ${Date.now()}`);
         if (audioStart) {
-          console.log(`⏰ [TIMING DEBUG] Time since audio start: ${Date.now() - audioStart}ms`);
+          // console.log(`⏰ [TIMING DEBUG] Time since audio start: ${Date.now() - audioStart}ms`);
         }
       };
       (window as any).testVisemeSwitch = () => {
-        console.log('🚨 [RAW TEST] Testing Azure TTS viseme switching: PP ↔ I');
+        // console.log('🚨 [RAW TEST] Testing Azure TTS viseme switching: PP ↔ I');
         let isI = false;
         const switchInterval = setInterval(() => {
           if (isI) {
             // Test viseme_PP (Azure ID 21 - p,b,m sounds)
             setMorphTargetDirect('viseme_I', 0.0);
             setMorphTargetDirect('viseme_PP', 0.8);
-            console.log('🚨 [RAW TEST] Switched to viseme_PP (closed bilabial)');
+            // console.log('🚨 [RAW TEST] Switched to viseme_PP (closed bilabial)');
           } else {
             // Test viseme_I (Azure ID 6 - i sounds)  
             setMorphTargetDirect('viseme_PP', 0.0);
             setMorphTargetDirect('viseme_I', 0.7);
-            console.log('🚨 [RAW TEST] Switched to viseme_I (high front vowel)');
+            // console.log('🚨 [RAW TEST] Switched to viseme_I (high front vowel)');
           }
           isI = !isI;
         }, 500); // Switch every 500ms
@@ -443,20 +478,20 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
           setMorphTargetDirect('viseme_PP', 0.0);
           setMorphTargetDirect('viseme_I', 0.0);
           setMorphTargetDirect('viseme_sil', 0.1);
-          console.log('🚨 [RAW TEST] Viseme switching test completed');
+          // console.log('🚨 [RAW TEST] Viseme switching test completed');
         }, 10000);
       };
-      console.log('🚨 [VRMAvatar] AUDIO OFFSET TIMING MODE ACTIVE - Perfect lip sync with Azure TTS timing!');
-      console.log('🚨 [VRMAvatar] MANUAL TESTS AVAILABLE:');
-      console.log('  window.testMouthOpen() - Test mouth opening');
-      console.log('  window.testMouthClosed() - Test mouth closing'); 
-      console.log('  window.testMouthPP() - Test P/B/M sounds');
-      console.log('  window.testViseme("viseme_name", intensity) - Test any viseme');
-      console.log('  window.testVisemeSwitch() - Test PP ↔ I switching like Azure TTS');
-      console.log('  window.showVisemeSummary() - Show TTS viseme summary');
-      console.log('⏰ [VRMAvatar] TIMING DEBUG FUNCTIONS:');
-      console.log('  window.showAudioTiming() - Show current timing state');
-      console.log('  window.cancelScheduledVisemes() - Cancel all scheduled visemes');
+      // console.log('🚨 [VRMAvatar] AUDIO OFFSET TIMING MODE ACTIVE - Perfect lip sync with Azure TTS timing!');
+      // console.log('🚨 [VRMAvatar] MANUAL TESTS AVAILABLE:');
+      // console.log('  window.testMouthOpen() - Test mouth opening');
+      // console.log('  window.testMouthClosed() - Test mouth closing'); 
+      // console.log('  window.testMouthPP() - Test P/B/M sounds');
+      // console.log('  window.testViseme("viseme_name", intensity) - Test any viseme');
+      // console.log('  window.testVisemeSwitch() - Test PP ↔ I switching like Azure TTS');
+      // console.log('  window.showVisemeSummary() - Show TTS viseme summary');
+      // console.log('⏰ [VRMAvatar] TIMING DEBUG FUNCTIONS:');
+      // console.log('  window.showAudioTiming() - Show current timing state');
+      // console.log('  window.cancelScheduledVisemes() - Cancel all scheduled visemes');
     }
   }, [testManualViseme, displayVisemeSummary]);
 
@@ -480,7 +515,7 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
           
           // Debug significant changes
           if (Math.abs(newValue - currentValue) > 0.05) {
-            console.log(`[VRMAvatar] 🎯 Smooth Applied '${targetName}': ${currentValue.toFixed(2)} → ${newValue.toFixed(2)} (smooth: ${smoothFactor})`);
+            // console.log(`[VRMAvatar] 🎯 Smooth Applied '${targetName}': ${currentValue.toFixed(2)} → ${newValue.toFixed(2)} (smooth: ${smoothFactor})`);
           }
         }
       }
@@ -577,12 +612,12 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
   // Start speaking animation for GLB models
   const startSpeakingAnimation = () => {
     // 🚨 RAW MODE: COMPLETELY DISABLED - Azure TTS controls all visemes directly
-    console.log('🚨 [RAW MODE] startSpeakingAnimation BLOCKED - Azure TTS has full control');
+    // console.log('🚨 [RAW MODE] startSpeakingAnimation BLOCKED - Azure TTS has full control');
     return; // Exit immediately to prevent interference with Azure TTS
     
     if (modelType !== 'glb' || speakingIntervalRef.current) return;
     
-    console.log('🎤 Starting GLB speaking animation with Ready Player Me visemes (triggered by audio playback)');
+    // console.log('🎤 Starting GLB speaking animation with Ready Player Me visemes (triggered by audio playback)');
     
     // Reset mouth state and previous viseme tracking
     mouthStateRef.current = 'closed';
@@ -598,7 +633,7 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
     if (speakingIntervalRef.current) {
       clearInterval(speakingIntervalRef.current);
       speakingIntervalRef.current = null;
-      console.log('🤐 Stopped GLB speaking animation');
+      // console.log('🤐 Stopped GLB speaking animation');
     }
     
     // 🎯 SMART STOP: Don't clear Azure TTS viseme state or seal lips during active TTS
@@ -606,7 +641,7 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
                              (Date.now() - currentActiveVisemeRef.current.timestamp < 2000);
     
     if (hasActiveAzureTTS) {
-      console.log('🚨 [SMART STOP] Keeping Azure TTS viseme state - not clearing or sealing');
+      // console.log('🚨 [SMART STOP] Keeping Azure TTS viseme state - not clearing or sealing');
       return; // Don't clear state or seal lips during active Azure TTS
     }
     
@@ -620,7 +655,7 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
   // 🎯 AZURE TTS INTEGRATION: Prepare avatar for Azure TTS lip sync
   const prepareForAzureTTS = useCallback(() => {
     if (modelType === 'glb' && modelRef.current) {
-      console.log('🔥 [VRMAvatar] Preparing for Azure TTS - clearing all lip movements');
+      // console.log('🔥 [VRMAvatar] Preparing for Azure TTS - clearing all lip movements');
       
       // Stop any existing speaking animations
       stopSpeakingAnimation();
@@ -647,7 +682,7 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
         lerpMorphTarget('viseme_sil', 0.1, 0.3);
       }, 50);
       
-      console.log('🔒 [VRMAvatar] Ready for Azure TTS - lips sealed and neutral');
+      // console.log('🔒 [VRMAvatar] Ready for Azure TTS - lips sealed and neutral');
     }
   }, [modelType, lerpMorphTarget]);
 
@@ -660,7 +695,7 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
       const recentVisemeActivity = currentActiveVisemeRef.current && now - currentActiveVisemeRef.current.timestamp < 1000; // Extended to 1 second
       
       if (hasActiveVisemes || recentVisemeActivity) {
-        console.log('🚨 [RAW MODE] BLOCKING lip seal - Azure TTS visemes are active!');
+        // console.log('🚨 [RAW MODE] BLOCKING lip seal - Azure TTS visemes are active!');
         return;
       }
       
@@ -673,7 +708,7 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
       setMorphTargetDirect('viseme_sil', 0.1); // Direct neutral position
       
       previousVisemeRef.current = 'viseme_sil';
-      console.log('🔒 RAW MODE: Lips sealed directly for idle state');
+      // console.log('🔒 RAW MODE: Lips sealed directly for idle state');
     }
   };
 
@@ -687,7 +722,7 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
 
   // Function to fix material issues for proper rendering
   const fixModelMaterials = (model: THREE.Object3D) => {
-    console.log('🎨 Fixing materials for proper rendering...');
+    // console.log('🎨 Fixing materials for proper rendering...');
     
     model.traverse((child) => {
       if (child instanceof THREE.Mesh) {
@@ -701,7 +736,7 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
                          meshName.includes('cornea') || meshName.includes('eyeball');
         
         if (isEyeMesh) {
-          console.log(`👁️ Found eye mesh: ${child.name}, preserving original transform`);
+          // console.log(`👁️ Found eye mesh: ${child.name}, preserving original transform`);
           eyeObjectsRef.current.set(child.uuid, {
             object: child,
             originalPosition: child.position.clone(),
@@ -715,7 +750,7 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
           
           // Also preserve the parent hierarchy to prevent inherited transforms
           if (child.parent) {
-            console.log(`👁️ Eye object ${child.name} has parent: ${child.parent.name}`);
+            // console.log(`👁️ Eye object ${child.name} has parent: ${child.parent.name}`);
           }
         }
         
@@ -742,7 +777,7 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
             
             // Special handling for eye materials (common naming patterns)
             if (isEyeMesh) {
-              console.log(`👁️ Applying special eye material properties to: ${child.name}`);
+              // console.log(`👁️ Applying special eye material properties to: ${child.name}`);
               material.roughness = 0.1; // Make eyes more reflective
               material.metalness = 0.0;
               material.transparent = false; // Ensure eyes are not transparent
@@ -772,7 +807,7 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
       }
     });
     
-    console.log('✅ Material fixes applied, eye objects preserved');
+    // console.log('✅ Material fixes applied, eye objects preserved');
   };
 
   // Load animations for GLB models
@@ -804,9 +839,9 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
       // Use idle as thinking for now
       thinkingClipRef.current = idleClipRef.current;
       
-      console.log('✅ Animations loaded for GLB model');
+      // console.log('✅ Animations loaded for GLB model');
     } catch (error) {
-      console.warn('⚠️ Some animations failed to load:', error);
+      // console.warn('⚠️ Some animations failed to load:', error);
     }
   };
 
@@ -867,7 +902,7 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
       }
     });
     
-    console.log(`🎬 Retargeted animation with ${tracks.length} tracks (eye bones excluded)`);
+    // console.log(`🎬 Retargeted animation with ${tracks.length} tracks (eye bones excluded)`);
     return new THREE.AnimationClip(clip.name, clip.duration, tracks, clip.blendMode);
   };
 
@@ -910,7 +945,7 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
     currentActionRef.current = action;
     
     const syncStatus = modelType === 'glb' && clipName === 'talking' ? ' (synchronized with audio)' : '';
-    console.log(`🎬 Playing animation: ${clipName}${syncStatus}`);
+    // console.log(`🎬 Playing animation: ${clipName}${syncStatus}`);
   };
 
   // Initialize Three.js scene
@@ -1038,10 +1073,10 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
           playAnimation('idle');
           
           setIsLoading(false);
-          console.log('✅ VRM model loaded successfully');
+          // console.log('✅ VRM model loaded successfully');
         },
         (progress) => {
-          console.log('Loading VRM:', (progress.loaded / progress.total * 100).toFixed(2) + '%');
+          // console.log('Loading VRM:', (progress.loaded / progress.total * 100).toFixed(2) + '%');
         },
         (error) => {
           console.error('Error loading VRM:', error);
@@ -1077,9 +1112,9 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
           
           // Use embedded animations if available
           if (gltf.animations && gltf.animations.length > 0) {
-            console.log(`Found ${gltf.animations.length} embedded animations`);
+            // console.log(`Found ${gltf.animations.length} embedded animations`);
             gltf.animations.forEach((clip, index) => {
-              console.log(`Animation ${index}: ${clip.name}`);
+              // console.log(`Animation ${index}: ${clip.name}`);
               if (index === 0) idleClipRef.current = clip;
               if (index === 1) talkingClipRef.current = clip;
               if (index === 2) thinkingClipRef.current = clip;
@@ -1098,7 +1133,7 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
           // Initialize lip sync debugger
           debuggerRef.current = new LipSyncDebugger(model);
           const report = debuggerRef.current.generateReport();
-          console.log(report);
+          //console.log(report);
           
           // Check viseme availability
           const visemeCheck = debuggerRef.current.checkReadyPlayerMeVisemes();
@@ -1257,6 +1292,21 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
       };
     }
   }, [onViseme, modelType, handleDirectViseme]);
+  
+  // 🎯 VISEME CANCELLATION: Register cancelAllScheduledVisemes function with AudioProvider
+  useEffect(() => {
+    if (onCancelScheduledVisemes && modelType === 'glb') {
+      console.log('✅ Registering cancelAllScheduledVisemes callback for GLB model');
+      
+      // Pass the cancellation handler
+      onCancelScheduledVisemes(cancelAllScheduledVisemes);
+      
+      return () => {
+        // Clean up callback
+        onCancelScheduledVisemes(() => {});
+      };
+    }
+  }, [onCancelScheduledVisemes, modelType, cancelAllScheduledVisemes]);
   
   // Sync animations with audio state  
   useEffect(() => {

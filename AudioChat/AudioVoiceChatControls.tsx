@@ -115,7 +115,7 @@ export function MicOffIcon({
 
 // Audio-specific voice chat controls - matching text bot design
 export const AudioVoiceChatControls = () => {
-  const { isAvatarSessionActive, stopSpeaking, isMuted, isVoiceChatActive, isAvatarTalking } = useAudioContext();
+  const { isAvatarSessionActive, stopSpeaking, isMuted, isVoiceChatActive, isAvatarTalking, cancelScheduledVisemes } = useAudioContext();
   const { muteInputAudio, unmuteInputAudio, startVoiceChat, isRecording, hasProcessedFinalTranscript, isDeepgramConnected } = useAudioVoiceChat();
   const { requestAudioInterruption } = useAudioRagIntegration();
   const [isStarting, setIsStarting] = useState(false);
@@ -209,6 +209,12 @@ export const AudioVoiceChatControls = () => {
       if (stopSpeaking) {
         stopSpeaking(true);
       }
+      
+      // Cancel all scheduled visemes to stop lip sync immediately
+      if (cancelScheduledVisemes) {
+        cancelScheduledVisemes();
+      }
+      
       requestAudioInterruption();
     } catch (error) {
       console.error('[AudioVoiceChatControls] Error interrupting audio:', error);
@@ -234,7 +240,7 @@ export const AudioVoiceChatControls = () => {
     return () => {
       window.removeEventListener('audioInterruptRequest', handleAudioInterruptRequest);
     };
-  }, [handleInterrupt, stopSpeaking, requestAudioInterruption]);
+  }, [handleInterrupt, stopSpeaking, requestAudioInterruption, cancelScheduledVisemes]);
 
   const getButtonText = () => {
     if (!isVoiceChatActive) {
@@ -251,9 +257,11 @@ export const AudioVoiceChatControls = () => {
 
   const getButtonColor = () => {
     if (!isVoiceChatActive) {
-      return isStarting ? "bg-gray-500" : "bg-black hover:bg-gray-800";
+      return isStarting 
+        ? "bg-gradient-to-r from-gray-500 to-gray-600" 
+        : "bg-gradient-to-r from-gray-800 to-gray-900 hover:from-gray-900 hover:to-black";
     }
-    return "bg-black hover:bg-gray-800";
+    return "bg-gradient-to-r from-gray-800 to-gray-900 hover:from-gray-900 hover:to-black";
   };
 
   const getButtonIcon = () => {
@@ -292,12 +300,12 @@ export const AudioVoiceChatControls = () => {
   );
 
   return (
-    <div className="flex flex-col items-center gap-3">
-      <div className="flex justify-center gap-2">
+    <div className="flex flex-col items-center gap-4 px-4 py-2">
+      <div className="flex justify-center gap-3">
         <button
           onClick={handleMuteToggle}
           disabled={isStarting || isAvatarTalking}
-          className={`${getButtonColor()} text-white text-sm px-6 py-2 rounded-lg disabled:opacity-50 transition-colors h-fit flex items-center gap-2`}
+          className={`${getButtonColor()} text-white font-medium px-8 py-3 rounded-xl disabled:opacity-50 transition-all duration-200 h-fit flex items-center gap-3 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 disabled:transform-none disabled:hover:shadow-lg`}
           title={
             !isVoiceChatActive 
               ? "Start voice chat" 
@@ -308,9 +316,14 @@ export const AudioVoiceChatControls = () => {
                   : "Mute microphone"
           }
         >
-          {getButtonIcon()}
-          {getButtonText()}
+          <div className="flex items-center justify-center">
+            {getButtonIcon()}
+          </div>
+          {getButtonText() && (
+            <span className="text-sm font-semibold">{getButtonText()}</span>
+          )}
         </button>
+        
         {isAvatarTalking && isAvatarSessionActive && (
           <button
             data-testid="stop-button"
@@ -319,18 +332,36 @@ export const AudioVoiceChatControls = () => {
               e.stopPropagation();
               handleInterrupt();
             }}
-            className="!bg-red-600 !opacity-100 text-white text-sm px-6 py-2 rounded-lg hover:!bg-red-700 transition-colors font-medium shadow-sm border border-red-500 h-fit cursor-pointer"
+            className="bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white font-semibold px-8 py-3 rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 border border-red-500/20 h-fit cursor-pointer flex items-center gap-2"
             title="Stop audio playback"
           >
-            Stop
+            <div className="w-4 h-4 bg-white rounded-sm"></div>
+            <span className="text-sm font-semibold">Stop</span>
           </button>
         )}
       </div>
-      {/* Voice chat status indicators - show wave when Deepgram connection is established */}
+      
+      {/* Enhanced Voice chat status indicators */}
       {isVoiceChatActive && !isMuted && !isAvatarTalking && isDeepgramConnectedRef.current && !isStarting && (
-        <div className="flex flex-col items-center gap-2 h-8"> {/* Fixed height container */}
-          <div className={`flex items-center gap-2 text-black transition-opacity duration-200 ${isListening ? 'opacity-100' : 'opacity-0'}`}>
-            <Wave />
+        <div className="flex flex-col items-center gap-3 h-10 justify-center">
+          <div className={`flex items-center gap-3 transition-all duration-300 ${isListening ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}>
+            <div className="flex items-center gap-2 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-full px-4 py-2">
+              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+              <span className="text-xs font-medium text-green-700">Listening</span>
+            </div>
+            <div className="bg-white/80 backdrop-blur-sm rounded-full px-3 py-1 border border-gray-200">
+              <Wave />
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Connection status indicator */}
+      {isVoiceChatActive && isDeepgramConnectedRef.current && !isStarting && (
+        <div className="flex items-center justify-center">
+          <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-full px-3 py-1">
+            <div className="w-1.5 h-1.5 bg-blue-500 rounded-full"></div>
+            <span className="text-xs font-medium text-blue-700">Connected</span>
           </div>
         </div>
       )}

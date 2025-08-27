@@ -427,10 +427,10 @@ export const useAudioVoiceChat = () => {
             setShowStartTalkingPrompt(false);
           } else {
             // Log empty transcripts too for debugging
-            console.log(`📭 [EMPTY TRANSCRIPT] ${timestamp}:`, {
-              isFinal: isFinal,
-              rawData: data
-            });
+            // console.log(`📭 [EMPTY TRANSCRIPT] ${timestamp}:`, {
+            //   isFinal: isFinal,
+            //   rawData: data
+            // });
           }
           
           // Enhanced stop command detection during avatar speech
@@ -458,10 +458,11 @@ export const useAudioVoiceChat = () => {
             // Check for various stop command patterns and common transcription errors
             const stopPatterns = [
               // Exact matches
+              "stop",
               "peter stop", "stop peter", 
               // Common transcription errors during bot speech
               "peter stop it", "stop it peter", "stop peter now",
-              "peter", "stop", "stop it", "peter,", "stop,",
+              "peter", "stop it", "peter,", "stop,",
               // Fragmented versions
               "pet stop", "peter st", "st peter", "stop pe",
               // Audio interference patterns
@@ -802,79 +803,7 @@ export const useAudioVoiceChat = () => {
       cleanup();
     };
 
-    const handleVisibilityChange = () => {
-      console.log('[AudioVoiceChat] Page visibility changed to:', document.visibilityState);
-      
-      if (document.visibilityState === 'hidden') {
-        console.log('[AudioVoiceChat] Page hidden - pausing keep-alive but keeping connection open');
-        // Don't cleanup completely, just pause keep-alive to be less aggressive
-        if (keepAliveTimerRef.current) {
-          clearInterval(keepAliveTimerRef.current);
-          keepAliveTimerRef.current = null;
-          console.log('[AudioVoiceChat] Keep-alive paused for background tab');
-        }
-      } else if (document.visibilityState === 'visible') {
-        console.log('[AudioVoiceChat] Page visible - resuming Deepgram connection');
-        
-        // Check if Deepgram connection is still alive when returning to tab
-        const isConnectionAlive = isConnectionHealthy();
-        
-        if (!isConnectionAlive) {
-          console.log('[AudioVoiceChat] Deepgram connection lost during tab switch - force reconnecting');
-          forceReconnectDeepgram();
-        } else {
-          console.log('[AudioVoiceChat] Deepgram connection still alive - resuming keep-alive');
-          // Resume keep-alive if connection is still good
-          if (connectionRef.current && !keepAliveTimerRef.current) {
-            keepAliveTimerRef.current = setInterval(() => {
-              if (connectionRef.current) {
-                try {
-                  // Only send keep-alive if tab is visible
-                  if (document.visibilityState === 'visible' && !(window as any).__intensiveOperation) {
-                    connectionRef.current.keepAlive();
-                    
-                    // Update connection health on successful keep-alive
-                    connectionHealthRef.current.lastKeepAlive = Date.now();
-                    connectionHealthRef.current.consecutiveFailures = 0;
-                    
-                    // Reset failure counter on successful keep-alive
-                    if ((window as any).__keepAliveFailures > 0) {
-                      console.log('✅ [KEEP-ALIVE] Success - resetting failure counter');
-                      (window as any).__keepAliveFailures = 0;
-                    }
-                  }
-                } catch (error) {
-                  console.error('⚠️ [KEEP-ALIVE ERROR] Error sending keep-alive ping:', error);
-                  
-                  // Update connection health on failure
-                  connectionHealthRef.current.consecutiveFailures++;
-                  
-                  let keepAliveFailures = (window as any).__keepAliveFailures || 0;
-                  keepAliveFailures++;
-                  (window as any).__keepAliveFailures = keepAliveFailures;
-                  
-                  console.log(`[KEEP-ALIVE] Failure count: ${keepAliveFailures}/3`);
-                  
-                  if (keepAliveFailures >= 3) {
-                    console.error('❌ [KEEP-ALIVE] Multiple failures - will reconnect on next tab focus');
-                    setIsDeepgramConnected(false);
-                    (window as any).__keepAliveFailures = 0;
-                    if (connectionRef.current) {
-                      try {
-                        connectionRef.current.finish();
-                      } catch (e) {
-                        console.log('[AudioVoiceChat] Error finishing failed connection:', e);
-                      }
-                      connectionRef.current = null;
-                    }
-                  }
-                }
-              }
-            }, 5000); // Increase interval to 5 seconds for better tab switching compatibility
-          }
-        }
-      }
-    };
+
     
     const handleForceStopVoiceChat = () => {
       console.log('[AudioVoiceChat] Force stop voice chat event received - stopping all backend connections');
@@ -927,7 +856,6 @@ export const useAudioVoiceChat = () => {
     };
     
     window.addEventListener('beforeunload', handleBeforeUnload);
-    document.addEventListener('visibilitychange', handleVisibilityChange);
     window.addEventListener('forceStopVoiceChat', handleForceStopVoiceChat);
     window.addEventListener('forceStopConnections', handleForceStopConnections);
     window.addEventListener('voiceModeDisabled', handleVoiceModeDisabled);
@@ -936,7 +864,6 @@ export const useAudioVoiceChat = () => {
     return () => {
       console.log('[AudioVoiceChat] Component unmounting - cleaning up voice chat');
       window.removeEventListener('beforeunload', handleBeforeUnload);
-      window.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('forceStopVoiceChat', handleForceStopVoiceChat);
       window.removeEventListener('forceStopConnections', handleForceStopConnections);
       window.removeEventListener('voiceModeDisabled', handleVoiceModeDisabled);
