@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useAudioVoiceChat } from "../logic/audio";
 import { useAudioContext } from "../logic/AudioProvider";
+import { useVoice } from "../logic/VoiceContext";
 import { Loader2, MessageSquare, X } from "lucide-react";
 import { AudioAvatarControls } from "./AudioAvatarControls";
 import { AudioMessageHistory } from "./AudioMessageHistory";
@@ -31,6 +32,7 @@ export function AudioChatWithAvatar() {
   // Get context values with proper initialization check
   const context = useAudioContext();
   const { isRecording, showStartTalkingPrompt } = useAudioVoiceChat();
+  const { setIsSessionActive } = useVoice();
   
   // Only destructure context values after ensuring context is available
   const isProcessingResponse = context?.isProcessingResponse ?? false;
@@ -317,24 +319,94 @@ export function AudioChatWithAvatar() {
           </div>
 
           {/* 3D Model Display Area */}
-          <div className="flex-1 relative bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center">
+          <div className="flex-1 relative bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 flex items-center justify-center">
             {showStartButton ? (
-              <div className="w-full h-full flex flex-col items-center justify-center p-8 text-gray-600">
-                <div className="flex flex-col items-center space-y-6 max-w-md">
-                  <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center">
-                    <span className="text-3xl">🤖</span>
+              <div className="w-full h-full flex flex-col items-center justify-center p-8">
+                <div className="max-w-lg mx-auto text-center">
+                  {/* Professional Avatar Icon */}
+                  <div className="relative mb-8">
+                    <div className="w-32 h-32 mx-auto bg-gradient-to-br from-blue-500 via-blue-600 to-indigo-700 rounded-3xl shadow-2xl flex items-center justify-center relative overflow-hidden group">
+                      {/* Animated background pattern */}
+                      <div className="absolute inset-0 bg-gradient-to-br from-blue-400/20 via-transparent to-indigo-600/20 animate-pulse"></div>
+                      
+                      {/* Modern AI icon */}
+                      <div className="relative z-10">
+                        <svg className="w-16 h-16 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z" />
+                        </svg>
+                      </div>
+                      
+                      {/* Glowing border effect */}
+                      <div className="absolute -inset-0.5 bg-gradient-to-br from-blue-400 to-indigo-600 rounded-3xl opacity-75 group-hover:opacity-100 transition-opacity duration-300 blur-sm"></div>
+                    </div>
+                    
+                    {/* Floating particles effect */}
+                    <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-4">
+                      <div className="flex space-x-1">
+                        <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{animationDelay: '0ms'}}></div>
+                        <div className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce" style={{animationDelay: '150ms'}}></div>
+                        <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{animationDelay: '300ms'}}></div>
+                      </div>
+                    </div>
                   </div>
-                  <h3 className="text-2xl font-bold text-gray-800 text-center">AI Avatar Assistant</h3>
-                  <p className="text-gray-600 text-center text-lg leading-relaxed">
-                    Start your interactive session with our AI-powered avatar. Experience natural conversation with voice and chat capabilities.
-                  </p>
-                  <button
-                    onClick={handleStartCall}
-                    className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold py-4 px-8 rounded-xl transition-all duration-200 flex items-center space-x-3 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
-                  >
-                    <span className="text-xl">📞</span>
-                    <span className="text-lg">Start Session</span>
-                  </button>
+
+                  {/* Professional Title */}
+                  <div className="mb-6">
+                    <h3 className="text-3xl font-bold bg-gradient-to-r from-gray-900 via-blue-900 to-indigo-900 bg-clip-text text-transparent mb-3">
+                      AI Legal Advocate
+                    </h3>
+                    <div className="w-24 h-1 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full mx-auto"></div>
+                  </div>
+
+                  {/* Enhanced Description */}
+                  <div className="mb-8 space-y-3">
+                    <p className="text-lg text-gray-700 leading-relaxed font-medium">
+                      Meet Peter, your personal AI legal advocate powered by advanced voice synthesis and 3D avatar technology.
+                    </p>
+                    <div className="flex items-center justify-center space-x-6 text-sm text-gray-600">
+                      <div className="flex items-center space-x-2">
+                        <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                        <span>Real-time Voice</span>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+                        <span>3D Avatar</span>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <div className="w-2 h-2 bg-purple-500 rounded-full animate-pulse"></div>
+                        <span>Legal Expertise</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Enhanced Start Button */}
+                  <div className="relative">
+                    <button
+                      onClick={handleStartCall}
+                      className="group relative bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 hover:from-blue-700 hover:via-blue-800 hover:to-indigo-800 text-white font-bold py-5 px-10 rounded-2xl transition-all duration-300 flex items-center space-x-4 shadow-2xl hover:shadow-3xl transform hover:-translate-y-1 hover:scale-105 mx-auto overflow-hidden"
+                    >
+                      {/* Button background animation */}
+                      <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-700"></div>
+                      
+                      {/* Button content */}
+                      <div className="relative z-10 flex items-center space-x-4">
+                        <div className="p-2 bg-white/20 rounded-xl backdrop-blur-sm">
+                          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                          </svg>
+                        </div>
+                        <span className="text-xl font-bold tracking-wide">Start Session</span>
+                      </div>
+                      
+                      {/* Glowing border */}
+                      <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-400 to-indigo-600 rounded-2xl opacity-75 group-hover:opacity-100 transition-opacity duration-300 blur-sm -z-10"></div>
+                    </button>
+
+                    {/* Subtitle below button */}
+                    <p className="text-sm text-gray-500 mt-4 font-medium">
+                      Click to begin your conversation
+                    </p>
+                  </div>
                 </div>
               </div>
             ) : !isStarted ? (
@@ -350,7 +422,7 @@ export function AudioChatWithAvatar() {
                 {/* VRM Avatar Display */}
                 <VRMAvatar 
                   modelUrl={selectedModel}
-                  width={800}
+                  width={856}
                   height={600}
                   onVisemeMirror={(viseme) => {
                     // Mirror viseme to Looking Glass

@@ -28,9 +28,9 @@ def test_dependencies():
         ('flask_cors', 'Flask-CORS'),
         ('flask_socketio', 'Flask-SocketIO'),
         ('openai', 'OpenAI'),
-        ('boto3', 'Boto3'),
         ('dotenv', 'python-dotenv'),
-        ('requests', 'Requests')
+        ('requests', 'Requests'),
+        ('deepgram', 'Deepgram-SDK')
     ]
     
     all_good = True
@@ -55,8 +55,8 @@ def test_env_file():
         load_dotenv()
         
         required_vars = ['SECRET_KEY', 'PORT']
-        optional_vars = ['OPENAI_API_KEY', 'AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY']
-        rag_vars = ['RAG_ENDPOINT_URL', 'RAG_API_KEY']
+        optional_vars = ['OPENAI_API_KEY', 'DEEPGRAM_API_KEY']
+        rag_vars = ['RAG_ENDPOINT_URL']
         
         missing_required = []
         for var in required_vars:

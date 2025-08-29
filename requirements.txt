@@ -1,12 +1,19 @@
+# Core Flask Dependencies
 Flask==2.3.3
 Flask-CORS==4.0.0
 Flask-SocketIO==5.3.6
-python-socketio==5.9.0
+
+# AI/ML Services
 openai==1.3.0
-boto3==1.34.0
+deepgram-sdk==2.12.0
+
+# Utilities
 python-dotenv==1.0.0
 requests==2.31.0
+certifi==2023.7.22
+
+# Testing Dependencies (optional - only needed for test files)
 numpy==1.24.3
-Pillow==10.0.1
-gunicorn==21.2.0
-deepgram-sdk==2.12.0 
+
+# Production Server (optional - only for deployment)
+gunicorn==21.2.0 

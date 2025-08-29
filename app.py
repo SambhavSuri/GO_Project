@@ -8,7 +8,6 @@ import logging
 from datetime import datetime
 from dotenv import load_dotenv
 from services.deepgram_service import DeepgramService
-from services.murf_service import MurfService
 from services.rag_service import RAGService
 
 # Configure logging
@@ -25,7 +24,6 @@ socketio = SocketIO(app, cors_allowed_origins="*")
 
 # Initialize services
 deepgram_service = DeepgramService()
-murf_service = MurfService()
 rag_service = RAGService()
 
 class VRMData:
@@ -109,15 +107,13 @@ def chat():
         # Process through RAG pipeline
         response = rag_service.process_query(message)
         
-        # Convert to speech
-        audio_url = murf_service.synthesize_speech(response)
-        
+        # Note: TTS is now handled by the frontend using Azure Speech Services
         # Generate VRM data
         vrm_data = generate_vrm_response(response)
         
         return jsonify({
             "text": response,
-            "audio": audio_url,
+            "audio": None,  # TTS handled by frontend
             "status": "success",
             "vrm": vrm_data.to_dict()
         })
@@ -205,20 +201,22 @@ def speech_to_text():
 
 @app.route('/api/text-to-speech', methods=['POST'])
 def text_to_speech():
+    """
+    Legacy TTS endpoint - TTS is now handled by the frontend using Azure Speech Services
+    """
     try:
         data = request.get_json()
         text = data.get('text', '')
-        voice_id = data.get('voiceId', 'Joanna')
         
         if not text:
             return jsonify({"error": "No text provided"}), 400
         
-        # Convert text to speech
-        audio_url = murf_service.synthesize_speech(text, voice_id)
-        
+        # TTS is now handled by frontend using Azure Speech Services
         return jsonify({
-            "audio": audio_url,
-            "status": "success"
+            "message": "TTS is now handled by the frontend using Azure Speech Services",
+            "text": text,
+            "status": "success",
+            "audio": None
         })
     
     except Exception as e:
@@ -283,35 +281,23 @@ def handle_chat(data):
         else:
             logger.info(f"🤖 RAG pipeline response for text input: '{response}'")
         
-        # Emit RAG completed - about to start TTS
+        # Emit RAG completed - frontend will handle TTS
         logger.info("🧠 Emitting rag_completed event to all clients")
         emit('rag_completed', {
             'type': 'rag_completed',
             'content': response,
-            'message': 'Generating speech...'
+            'message': 'Response ready - frontend handling TTS...'
         }, broadcast=True)
         logger.info("✅ rag_completed event emitted")
         
-        # Convert to speech
-        audio_url = murf_service.synthesize_speech(response)
-        
-        # Generate VRM data for talking
+        # Generate VRM data for talking (frontend will handle TTS)
         vrm_data = generate_talking_vrm_response(response)
         
-        # Emit TTS started - begin talking animation
-        logger.info("🎤 Emitting tts_started event to all clients")
-        emit('tts_started', {
-            'type': 'tts_started',
-            'vrmData': vrm_data.to_dict(),
-            'message': 'Starting to speak...'
-        }, broadcast=True)
-        logger.info("✅ tts_started event emitted")
-        
-        # Emit response with audio
+        # Emit response without audio (frontend handles TTS via Azure Speech Services)
         emit('response', {
             'type': 'response',
             'content': response,
-            'audio': audio_url,
+            'audio': None,  # TTS handled by frontend
             'vrmData': vrm_data.to_dict(),
             'source': source
         })

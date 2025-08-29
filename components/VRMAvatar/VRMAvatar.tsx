@@ -267,7 +267,7 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
       
       // 🎯 STOP FLAG SYSTEM: Check if visemes should be blocked
       if (stopVisemesRef.current) {
-        console.log(`🚫 [VRMAvatar] Viseme ${id} blocked by stop flag - setting silence state`);
+        //console.log(`🚫 [VRMAvatar] Viseme ${id} blocked by stop flag - setting silence state`);
         
         // Set model mouth to silence state when stop flag is active
         const allVisemes = [

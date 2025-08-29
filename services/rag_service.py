@@ -7,8 +7,7 @@ from typing import List, Dict, Any
 class RAGService:
     def __init__(self):
         self.rag_endpoint = os.getenv('RAG_ENDPOINT_URL')
-        # Use the specific Bearer token you provided
-        self.rag_api_key = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NTUxNTQzMTh9.17uZyzBqOmjpQKjcrgZ5xAfCay4lSvU3WYjnHW4aopg'
+        self.rag_api_key = os.getenv('RAG_API_KEY')
         self.conversation_history = []
         
         # Validate RAG endpoint configuration
@@ -16,7 +15,10 @@ class RAGService:
             print("⚠️  Warning: RAG_ENDPOINT_URL not set. Using fallback responses.")
         else:
             print(f"✅ RAG endpoint configured: {self.rag_endpoint}")
-            print(f"✅ RAG API key configured: {self.rag_api_key[:20]}...")
+            if self.rag_api_key:
+                print(f"✅ RAG API key configured")
+            else:
+                print("⚠️  Warning: RAG_API_KEY not set. Requests may fail if authentication is required.")
     
     def process_query(self, query: str) -> str:
         """
@@ -52,9 +54,11 @@ class RAGService:
             
             # Prepare headers
             headers = {
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {self.rag_api_key}"
+                "Content-Type": "application/json"
             }
+            
+            if self.rag_api_key:
+                headers["Authorization"] = f"Bearer {self.rag_api_key}"
             
             # Make request to RAG endpoint
             response = requests.post(
@@ -194,9 +198,11 @@ class RAGService:
             }
             
             headers = {
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {self.rag_api_key}"
+                "Content-Type": "application/json"
             }
+            
+            if self.rag_api_key:
+                headers["Authorization"] = f"Bearer {self.rag_api_key}"
             
             response = requests.post(
                 self.rag_endpoint,

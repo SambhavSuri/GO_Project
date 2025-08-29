@@ -1088,7 +1088,7 @@ async function speakText(text, voiceId = 'en-US-terrell') {
         console.log('🎤 Converting text to speech:', text);
         isTTSSpeaking = true;
         
-        // Call Murf TTS API
+        // Call TTS API (legacy endpoint - TTS now handled by frontend)
         const response = await fetch('/api/text-to-speech', {
             method: 'POST',
             headers: {

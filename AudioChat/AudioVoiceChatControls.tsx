@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from "react";
 import { useAudioVoiceChat } from "../logic/useAudioVoiceChat";
 import { useAudioContext } from "../logic/AudioProvider";
 import { useAudioRagIntegration } from "../logic/useAudioRagIntegration";
+import { useVoice } from "../logic/VoiceContext";
+import { resetPreviewButton } from "../components/VoicePreviewButton";
 
 interface IconSvgProps {
   size?: number;
@@ -118,6 +120,7 @@ export const AudioVoiceChatControls = () => {
   const { isAvatarSessionActive, stopSpeaking, isMuted, isVoiceChatActive, isAvatarTalking, cancelScheduledVisemes } = useAudioContext();
   const { muteInputAudio, unmuteInputAudio, startVoiceChat, isRecording, hasProcessedFinalTranscript, isDeepgramConnected } = useAudioVoiceChat();
   const { requestAudioInterruption } = useAudioRagIntegration();
+  const { setIsSessionActive } = useVoice();
   const [isStarting, setIsStarting] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const isDeepgramConnectedRef = useRef(false);
@@ -126,6 +129,14 @@ export const AudioVoiceChatControls = () => {
   useEffect(() => {
     isDeepgramConnectedRef.current = isDeepgramConnected;
   }, [isDeepgramConnected]);
+
+  // Reset session state when voice chat becomes inactive
+  useEffect(() => {
+    if (!isVoiceChatActive) {
+      setIsSessionActive(false); // Unlock voice selection when voice chat stops
+      console.log('[AudioVoiceChatControls] Voice chat stopped - session unlocked');
+    }
+  }, [isVoiceChatActive, setIsSessionActive]);
 
   // Update listening state based on recording status, mute state, final transcript processing, and avatar session
   useEffect(() => {
@@ -144,6 +155,7 @@ export const AudioVoiceChatControls = () => {
       setIsStarting(true);
       try {
         await startVoiceChat();
+        setIsSessionActive(true); // Lock voice selection when voice chat starts
         // Auto-unmute and create Deepgram connection immediately after starting (like video bot)
         await unmuteInputAudio();
         console.log('[AudioVoiceChat] Voice chat started and mic unmuted by default');
@@ -331,6 +343,7 @@ export const AudioVoiceChatControls = () => {
               e.preventDefault();
               e.stopPropagation();
               handleInterrupt();
+              resetPreviewButton(); // Reset preview button if it was playing
             }}
             className="bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white font-semibold px-8 py-3 rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 border border-red-500/20 h-fit cursor-pointer flex items-center gap-2"
             title="Stop audio playback"
@@ -345,10 +358,7 @@ export const AudioVoiceChatControls = () => {
       {isVoiceChatActive && !isMuted && !isAvatarTalking && isDeepgramConnectedRef.current && !isStarting && (
         <div className="flex flex-col items-center gap-3 h-10 justify-center">
           <div className={`flex items-center gap-3 transition-all duration-300 ${isListening ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}>
-            <div className="flex items-center gap-2 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-full px-4 py-2">
-              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-              <span className="text-xs font-medium text-green-700">Listening</span>
-            </div>
+            {/* Hide listening text when unmuted, keep wave animation */}
             <div className="bg-white/80 backdrop-blur-sm rounded-full px-3 py-1 border border-gray-200">
               <Wave />
             </div>
@@ -356,8 +366,8 @@ export const AudioVoiceChatControls = () => {
         </div>
       )}
       
-      {/* Connection status indicator */}
-      {isVoiceChatActive && isDeepgramConnectedRef.current && !isStarting && (
+      {/* Connection status indicator - only when muted */}
+      {isVoiceChatActive && isMuted && isDeepgramConnectedRef.current && !isStarting && (
         <div className="flex items-center justify-center">
           <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-full px-3 py-1">
             <div className="w-1.5 h-1.5 bg-blue-500 rounded-full"></div>

@@ -459,7 +459,7 @@ export const useAudioVoiceChat = () => {
             const stopPatterns = [
               // Exact matches
               "stop",
-              "peter stop", "stop peter", 
+              "peter stop", "stop peter","peter, stop",
               // Common transcription errors during bot speech
               "peter stop it", "stop it peter", "stop peter now",
               "peter", "stop it", "peter,", "stop,",

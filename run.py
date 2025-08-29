@@ -24,7 +24,6 @@ def check_dependencies():
         import flask_cors
         import flask_socketio
         import openai
-        import boto3
         import dotenv
         import deepgram
         print("✅ All dependencies are installed")

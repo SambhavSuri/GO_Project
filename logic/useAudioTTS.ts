@@ -2,6 +2,7 @@ import { useRef, useCallback, useEffect } from "react";
 import { useAudioSpeakingContext } from "./useAudioSpeakingContext";
 import { azureTTS, VisemeData } from "../lib/azureTTS";
 import { AzureTTSBufferManager } from "../lib/azureTTSBufferManager";
+import { useVoice } from "./VoiceContext";
 
 // Audio constants
 const SAMPLE_RATE = 48000;
@@ -19,6 +20,7 @@ export const useAzureTTS = (
   onDirectViseme?: (visemeId: number, offset: number) => void  // 🎯 STREAMLINED signature
 ) => {
   const { canSpeakRef, isInterruptedRef, registerStopSpeaking, resetInterruptionState } = useAudioSpeakingContext();
+  const { selectedVoice } = useVoice();
   const audioBufferManagerRef = useRef<AzureTTSBufferManager | null>(null);
   const currentUtteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
   const isSpeakingRef = useRef<boolean>(false);
@@ -242,7 +244,11 @@ export const useAzureTTS = (
                 if (setIsAvatarTalking) setIsAvatarTalking(false);
                 if (setIsAvatarSessionActive) setIsAvatarSessionActive(false);
                 reject(new Error(error));
-              }
+              },
+              // signal
+              undefined,
+              // voice - use selected voice from context
+              selectedVoice
             );
             
           } catch (error) {

@@ -29,7 +29,7 @@ export async function azureSpeechSDKTTS(
   onComplete?: () => void,
   onError?: (error: string) => void,
   signal?: AbortSignal,
-  voice: string = 'en-US-DavisNeural',  // 🎤 MALE VOICE: Professional, clear male voice
+  voice: string = 'en-GB-RyanNeural',  // 🎤 MALE VOICE: Professional, clear male voice
   speed: number = 1.0
 ): Promise<void> {
   const speechKey = process.env.NEXT_PUBLIC_AZURE_SPEECH_KEY;
