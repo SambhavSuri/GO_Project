@@ -1,10 +1,17 @@
+'use client'
 import React, { useState, useEffect, useRef } from "react";
 import { useAudioVoiceChat } from "../logic/audio";
 import { useAudioContext } from "../logic/AudioProvider";
 import { Loader2 } from "lucide-react";
 import { AudioAvatarControls } from "./AudioAvatarControls";
 import { AudioMessageHistory } from "./AudioMessageHistory";
-import { VRMAvatar } from "../components/VRMAvatar/VRMAvatar";
+
+import dynamic from "next/dynamic";
+
+const VRMAvatar = dynamic(() => import("../components/VRMAvatar/VRMAvatar").then(mod => mod.VRMAvatar), {
+  ssr: false,
+});
+// import { VRMAvatar } from "../components/VRMAvatar/VRMAvatar";
 
 // Welcome message from the personal tutor
 //const WELCOME_MESSAGE = `P P P P P P P P P P P`;
@@ -255,28 +262,11 @@ export function AudioChatWithAvatar() {
       }
     };
     
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'hidden') {
-        console.log('[AudioChatWithAvatar] Page hidden - stopping all audio');
-        isPageClosing = true;
-        // Stop any ongoing speech synthesis
-        if ('speechSynthesis' in window) {
-          speechSynthesis.cancel();
-        }
-        // Force stop any Deepgram audio
-        if (context?.stopSpeaking) {
-          context.stopSpeaking(true);
-        }
-      }
-    };
-    
     window.addEventListener('beforeunload', handleBeforeUnload);
-    document.addEventListener('visibilitychange', handleVisibilityChange);
     
     return () => {
       console.log('[AudioChatWithAvatar] Component unmounting - stopping all audio');
       window.removeEventListener('beforeunload', handleBeforeUnload);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
       
       // Only force stop if page is actually closing
       if (isPageClosing) {

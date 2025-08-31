@@ -1,8 +1,13 @@
 /** @type {import('next').NextConfig} */
-const nextConfig = {
+const withTM = require("next-transpile-modules")([
+  "@lookingglass/webxr-polyfill",
+  "@lookingglass/webxr"
+]);
+
+const nextConfig = withTM({
   reactStrictMode: true,
   swcMinify: true,
-  
+
   // Enable CORS for API routes
   async headers() {
     return [
@@ -17,7 +22,7 @@ const nextConfig = {
       },
     ];
   },
-  
+
   // Serve static files from the static directory
   async rewrites() {
     return [
@@ -27,9 +32,13 @@ const nextConfig = {
       },
     ];
   },
-  
+
   // Webpack configuration for audio and 3D files
   webpack: (config) => {
+    config.resolve.extensionAlias = {
+      ".js": [".js", ".ts"],
+    };
+
     // Handle audio files
     config.module.rules.push({
       test: /\.(mp3|wav|ogg)$/,
@@ -42,7 +51,7 @@ const nextConfig = {
         },
       },
     });
-    
+
     // Handle 3D model files
     config.module.rules.push({
       test: /\.(gltf|glb|vrm|fbx)$/,
@@ -55,9 +64,9 @@ const nextConfig = {
         },
       },
     });
-    
+
     return config;
   },
-};
+});
 
 module.exports = nextConfig;

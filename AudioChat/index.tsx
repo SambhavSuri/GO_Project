@@ -1,3 +1,4 @@
+'use client'
 import React from "react";
 import { AudioSpeakingProvider, AudioChatProvider } from "../logic/audio";
 import { AudioProvider } from "../logic/AudioProvider";

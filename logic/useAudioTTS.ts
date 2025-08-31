@@ -309,17 +309,8 @@ export const useAzureTTS = (
   const stopSpeaking = useCallback((forceStop: boolean = false) => {
     console.log('[AzureTTS] stopSpeaking called with forceStop:', forceStop);
     
-    // CRITICAL FIX: Set intensive operation flag to prevent Deepgram keep-alive conflicts
-    if (forceStop) {
-      console.log('[AzureTTS] 🔒 Setting intensive operation flag to protect Deepgram connection');
-      (window as any).__intensiveOperation = true;
-      
-      // Clear the flag after a short delay to allow operations to complete
-      setTimeout(() => {
-        (window as any).__intensiveOperation = false;
-        console.log('[AzureTTS] 🔓 Cleared intensive operation flag');
-      }, 1000);
-    }
+    // Don't set intensive operation flag - keep Deepgram connection alive
+    // Only set flag for actual page close scenarios
     
     // Stop browser speech synthesis
     if ('speechSynthesis' in window) {
@@ -495,17 +486,8 @@ export const useStreamingAzureTTS = (
   const stopSpeaking = useCallback((forceStop: boolean = false) => {
     console.log('[AzureStreamingTTS] stopSpeaking called with forceStop:', forceStop);
     
-    // CRITICAL FIX: Set intensive operation flag to prevent Deepgram keep-alive conflicts
-    if (forceStop) {
-      console.log('[AzureStreamingTTS] 🔒 Setting intensive operation flag to protect Deepgram connection');
-      (window as any).__intensiveOperation = true;
-      
-      // Clear the flag after a short delay to allow operations to complete
-      setTimeout(() => {
-        (window as any).__intensiveOperation = false;
-        console.log('[AzureStreamingTTS] 🔓 Cleared intensive operation flag');
-      }, 1000);
-    }
+    // Don't set intensive operation flag - keep Deepgram connection alive
+    // Only set flag for actual page close scenarios
     
     if (abortControllerRef.current) abortControllerRef.current.abort();
     if (audioBufferManagerRef.current) {

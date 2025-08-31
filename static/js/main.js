@@ -1,10 +1,11 @@
-import * as THREE from '../three.js-master/build/three.module.js';
-import { GLTFLoader } from '../three.js-master/examples/jsm/loaders/GLTFLoader.js';
-import { VRButton } from "../three.js-master/examples/jsm/webxr/VRButton.js";
-import {
-  LookingGlassWebXRPolyfill,
-  LookingGlassConfig
-} from "https://cdn.skypack.dev/@lookingglass/webxr@0.6.0";
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { VRButton } from "three/examples/jsm/webxr/VRButton.js";
+// WebXR polyfill loaded via _app.tsx to prevent conflicts
+// import {
+//   LookingGlassWebXRPolyfill,
+//   LookingGlassConfig
+// } from "https://cdn.skypack.dev/@lookingglass/webxr@0.6.0";
 import { VRMLoaderPlugin,VRMExpressionLoaderPlugin } from './three-vrm.module.min.js';
 import { loadMixamoAnimation } from './loadMixamoAnimation.js';
 
@@ -15,8 +16,8 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color('#efead7');
 console.log('✅ Scene created');
 
-// Update camera
-const camera = new THREE.PerspectiveCamera(30.0, window.innerWidth / window.innerHeight, 0.1, 20.0);
+// Update camera with proper XR clipping planes
+const camera = new THREE.PerspectiveCamera(70.0, window.innerWidth / window.innerHeight, 0.01, 5000.0);
 camera.position.set(0.0, 1.0, 2.73);
 console.log('📷 Camera created and positioned');
 
@@ -39,24 +40,11 @@ light.position.set(1.0, 1.0, 1.0).normalize();
 scene.add(light);
 console.log('✅ Directional light added');
 
-// Initialize Looking Glass configuration
-const config = LookingGlassConfig;
-config.targetY = 0;        // Center the target
-config.targetZ = 0;        // Keep at origin
-config.targetDiam = 4.0;   // Larger diameter for full model visibility
-config.fovy = (30 * Math.PI) / 180;  // Wider field of view
-config.depthiness = 1.5;   // Increase depth perception
-config.nearPlane = 0.1;    // Close near plane
-config.farPlane = 100.0;   // Far plane for full depth
-console.log('✅ Looking Glass config optimized for full model visibility');
+// Looking Glass configuration - will be set by _app.tsx
+console.log('✅ Looking Glass config will be set by _app.tsx');
 
-// Initialize Looking Glass WebXR Polyfill
-try {
-    new LookingGlassWebXRPolyfill();
-    console.log('✅ Looking Glass WebXR Polyfill initialized');
-} catch (error) {
-    console.log('⚠️ Looking Glass WebXR Polyfill warning (non-critical):', error.message);
-}
+// WebXR polyfill initialization handled by _app.tsx to prevent conflicts
+console.log('✅ WebXR polyfill initialization handled by _app.tsx');
 
 // Animation variables
 let currentVrm = null;
@@ -2058,8 +2046,12 @@ const sizes = {
 };
 console.log('📐 Canvas size:', sizes);
 
-// Renderer
-const renderer = new THREE.WebGLRenderer();
+// Renderer with WebGL2 support
+const renderer = new THREE.WebGLRenderer({
+  antialias: true,
+  context: undefined, // Let Three.js choose the best context
+  failIfMajorPerformanceCaveat: false // Allow fallback to WebGL1 if needed
+});
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(window.devicePixelRatio);
 renderer.setClearColor(0x000000, 0); // Make renderer background transparent

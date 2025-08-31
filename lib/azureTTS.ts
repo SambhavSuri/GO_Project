@@ -29,7 +29,7 @@ export async function azureSpeechSDKTTS(
   onComplete?: () => void,
   onError?: (error: string) => void,
   signal?: AbortSignal,
-  voice: string = 'en-US-DavisNeural',  // 🎤 MALE VOICE: Professional, clear male voice
+  voice: string = 'en-GB-RyanNeural',  // 🎤 MALE VOICE: Professional, clear male voice
   speed: number = 1.0
 ): Promise<void> {
   const speechKey = process.env.NEXT_PUBLIC_AZURE_SPEECH_KEY;
@@ -84,8 +84,8 @@ export async function azureSpeechSDKTTS(
           
           // 🚨 DETAILED AZURE VISEME LOGGING
           const phoneme = azureVisemeReference[e.visemeId] || 'unknown';
-          console.log(`🔥 [Azure Speech SDK] VISEME RECEIVED: ID=${e.visemeId} (${phoneme}) at ${offsetMs.toFixed(1)}ms`);
-          console.log(`🎯 [Azure Speech SDK] Viseme Details: {id: ${e.visemeId}, phoneme: "${phoneme}", offset: ${offsetMs.toFixed(1)}ms, timestamp: ${Date.now()}}`);
+          // console.log(`🔥 [Azure Speech SDK] VISEME RECEIVED: ID=${e.visemeId} (${phoneme}) at ${offsetMs.toFixed(1)}ms`);
+          // console.log(`🎯 [Azure Speech SDK] Viseme Details: {id: ${e.visemeId}, phoneme: "${phoneme}", offset: ${offsetMs.toFixed(1)}ms, timestamp: ${Date.now()}}`);
           
           // 🚀 DIRECT: Pass viseme immediately for perfect sync
           onDirectViseme(e.visemeId, offsetMs);

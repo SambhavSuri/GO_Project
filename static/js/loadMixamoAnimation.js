@@ -1,5 +1,5 @@
-import * as THREE from '../three.js-master/build/three.module.js';
-import { FBXLoader } from '../three.js-master/examples/jsm/loaders/FBXLoader.js';
+import * as THREE from 'three';
+import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
 import { mixamoVRMRigMap } from '../mixamoVRMRigMap.js';
 
 /**

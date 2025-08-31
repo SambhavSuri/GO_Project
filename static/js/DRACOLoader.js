@@ -3,7 +3,7 @@ import {
 	BufferAttribute,
 	Uint16BufferAttribute,
 	Uint32BufferAttribute
-} from '../three.js-master/build/three.module.js';
+} from 'three';
 
 const _taskCache = new WeakMap();
 

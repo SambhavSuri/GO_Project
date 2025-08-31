@@ -207,28 +207,11 @@ export function AudioChat() {
       }
     };
     
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'hidden') {
-        console.log('[AudioChat] Page hidden - stopping all audio');
-        isPageClosing = true;
-        // Stop any ongoing speech synthesis
-        if ('speechSynthesis' in window) {
-          speechSynthesis.cancel();
-        }
-        // Force stop any Deepgram audio
-        if (context?.stopSpeaking) {
-          context.stopSpeaking(true);
-        }
-      }
-    };
-    
     window.addEventListener('beforeunload', handleBeforeUnload);
-    document.addEventListener('visibilitychange', handleVisibilityChange);
     
     return () => {
       console.log('[AudioChat] Component unmounting - stopping all audio');
       window.removeEventListener('beforeunload', handleBeforeUnload);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
       
       // Only force stop if page is actually closing
       if (isPageClosing) {

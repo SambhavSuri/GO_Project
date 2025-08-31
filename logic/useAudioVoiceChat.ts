@@ -83,8 +83,9 @@ export const useAudioVoiceChat = () => {
     }
   }, [isProcessingRef.current]);
 
-  const cleanup = useCallback(() => {
-    console.log('[AudioVoiceChat] Cleaning up connection and resources...');
+  // Split cleanup into two functions: one for page close, one for normal operations
+  const cleanupOnPageClose = useCallback(() => {
+    console.log('[AudioVoiceChat] Cleaning up connection and resources on page close...');
     
     if (silenceTimerRef.current) {
       clearTimeout(silenceTimerRef.current);
@@ -102,7 +103,7 @@ export const useAudioVoiceChat = () => {
     }
     
     if (connectionRef.current) {
-      console.log('[AudioVoiceChat] Closing connection...');
+      console.log('[AudioVoiceChat] Closing connection on page close...');
       try {
         connectionRef.current.finish();
       } catch (error) {
@@ -140,8 +141,35 @@ export const useAudioVoiceChat = () => {
     finalTranscriptRef.current = "";
     stopCommandBufferRef.current = "";
     setShowStartTalkingPrompt(false);
-    hasFinalTranscriptRef.current = false; // Reset for next conversation
-    console.log('[AudioVoiceChat] Cleanup completed');
+    hasFinalTranscriptRef.current = false;
+    console.log('[AudioVoiceChat] Page close cleanup completed');
+  }, []);
+
+  // Minimal cleanup for normal operations (keeps connections alive)
+  const cleanup = useCallback(() => {
+    console.log('[AudioVoiceChat] Minimal cleanup - keeping connections alive...');
+    
+    if (silenceTimerRef.current) {
+      clearTimeout(silenceTimerRef.current);
+      silenceTimerRef.current = null;
+    }
+    
+    if (stopCommandTimerRef.current) {
+      clearTimeout(stopCommandTimerRef.current);
+      stopCommandTimerRef.current = null;
+    }
+    
+    // Don't stop Deepgram connection or audio tracks during normal operations
+    // Only reset transcript state
+    setCurrentTranscript("");
+    setHasProcessedFinalTranscript(false);
+    hasContentRef.current = false;
+    isProcessingRef.current = false;
+    finalTranscriptRef.current = "";
+    stopCommandBufferRef.current = "";
+    setShowStartTalkingPrompt(false);
+    hasFinalTranscriptRef.current = false;
+    console.log('[AudioVoiceChat] Minimal cleanup completed - connections kept alive');
   }, []);
 
   const handleSilence = useCallback(async () => {
@@ -425,12 +453,14 @@ export const useAudioVoiceChat = () => {
               });
             }
             setShowStartTalkingPrompt(false);
-          } else {
+          } 
+          else {
             // Log empty transcripts too for debugging
             console.log(`📭 [EMPTY TRANSCRIPT] ${timestamp}:`, {
               isFinal: isFinal,
               rawData: data
-            });
+            }
+          );
           }
           
           // Enhanced stop command detection during avatar speech
@@ -457,7 +487,8 @@ export const useAudioVoiceChat = () => {
             
             // Check for various stop command patterns and common transcription errors
             const stopPatterns = [
-              // Exact matches
+              // Exact matches 
+              "stop",
               "peter stop", "stop peter", 
               // Common transcription errors during bot speech
               "peter stop it", "stop it peter", "stop peter now",
@@ -654,7 +685,7 @@ export const useAudioVoiceChat = () => {
 
   const startVoiceChat = useCallback(async () => {
     console.log('[AudioVoiceChat] Starting voice chat...');
-    cleanup();
+    cleanup(); // Use minimal cleanup to keep connections alive
     
     try {
       // Set voice chat as active first
@@ -675,14 +706,14 @@ export const useAudioVoiceChat = () => {
       
     } catch (error) {
       console.error('[AudioVoiceChat] Error starting voice chat:', error);
-      cleanup();
+      cleanup(); // Use minimal cleanup
       setIsVoiceChatActive(false);
     }
   }, [cleanup, setupDeepgram, setIsVoiceChatActive, setIsMuted, isVoiceChatActive, isMuted]);
 
   const stopVoiceChat = useCallback(() => {
     console.log('[AudioVoiceChat] Stopping voice chat...');
-    cleanup();
+    cleanup(); // Use minimal cleanup to keep connections alive
     setIsVoiceChatActive(false);
     setIsMuted(true);
     setIsRecording(false);
@@ -691,20 +722,16 @@ export const useAudioVoiceChat = () => {
   const muteInputAudio = useCallback(() => {
     setIsMuted(true);
     
-    // Only stop audio recording, but keep Deepgram connection alive
-    if (audioStreamRef.current) {
-      audioStreamRef.current.getTracks().forEach(track => track.stop());
-      audioStreamRef.current = null;
+    // Don't stop audio tracks - keep Deepgram connection alive
+    // Only stop audio processing but keep the stream active
+    if (workletNodeRef.current) {
+      workletNodeRef.current.disconnect();
+      workletNodeRef.current = null;
     }
     
     if (audioContextRef.current) {
       audioContextRef.current.close();
       audioContextRef.current = null;
-    }
-    
-    if (workletNodeRef.current) {
-      workletNodeRef.current.disconnect();
-      workletNodeRef.current = null;
     }
     
     // Clear timers but keep Deepgram connection and voice chat active
@@ -717,9 +744,12 @@ export const useAudioVoiceChat = () => {
     finalTranscriptRef.current = "";
     hasContentRef.current = false;
     isProcessingRef.current = false;
-    hasFinalTranscriptRef.current = false;
+    setCurrentTranscript("");
     setHasProcessedFinalTranscript(false);
-  }, [setIsMuted]);
+    setShowStartTalkingPrompt(false);
+    
+    console.log('[AudioVoiceChat] Audio muted - Deepgram connection kept alive');
+  }, []);
 
   const unmuteInputAudio = useCallback(async () => {
     try {
@@ -799,7 +829,7 @@ export const useAudioVoiceChat = () => {
     const handleBeforeUnload = () => {
       console.log('[AudioVoiceChat] Page closing - cleaning up voice chat');
       isPageClosing = true;
-      cleanup();
+      cleanupOnPageClose();
     };
 
     const handleVisibilityChange = () => {
@@ -807,7 +837,7 @@ export const useAudioVoiceChat = () => {
       
       if (document.visibilityState === 'hidden') {
         console.log('[AudioVoiceChat] Page hidden - pausing keep-alive but keeping connection open');
-        // Don't cleanup completely, just pause keep-alive to be less aggressive
+        // Pause keep-alive pings but keep Deepgram connection alive
         if (keepAliveTimerRef.current) {
           clearInterval(keepAliveTimerRef.current);
           keepAliveTimerRef.current = null;
@@ -816,69 +846,60 @@ export const useAudioVoiceChat = () => {
       } else if (document.visibilityState === 'visible') {
         console.log('[AudioVoiceChat] Page visible - resuming Deepgram connection');
         
-        // Check if Deepgram connection is still alive when returning to tab
-        const isConnectionAlive = isConnectionHealthy();
-        
-        if (!isConnectionAlive) {
-          console.log('[AudioVoiceChat] Deepgram connection lost during tab switch - force reconnecting');
-          forceReconnectDeepgram();
-        } else {
-          console.log('[AudioVoiceChat] Deepgram connection still alive - resuming keep-alive');
-          // Resume keep-alive if connection is still good
-          if (connectionRef.current && !keepAliveTimerRef.current) {
-            keepAliveTimerRef.current = setInterval(() => {
-              if (connectionRef.current) {
-                try {
-                  // Only send keep-alive if tab is visible
-                  if (document.visibilityState === 'visible' && !(window as any).__intensiveOperation) {
-                    connectionRef.current.keepAlive();
-                    
-                    // Update connection health on successful keep-alive
-                    connectionHealthRef.current.lastKeepAlive = Date.now();
-                    connectionHealthRef.current.consecutiveFailures = 0;
-                    
-                    // Reset failure counter on successful keep-alive
-                    if ((window as any).__keepAliveFailures > 0) {
-                      console.log('✅ [KEEP-ALIVE] Success - resetting failure counter');
-                      (window as any).__keepAliveFailures = 0;
-                    }
-                  }
-                } catch (error) {
-                  console.error('⚠️ [KEEP-ALIVE ERROR] Error sending keep-alive ping:', error);
+        // Resume keep-alive if connection is still alive
+        if (connectionRef.current && !keepAliveTimerRef.current) {
+          keepAliveTimerRef.current = setInterval(() => {
+            if (connectionRef.current) {
+              try {
+                // Send keep-alive ping
+                if (document.visibilityState === 'visible' && !(window as any).__intensiveOperation) {
+                  connectionRef.current.keepAlive();
                   
-                  // Update connection health on failure
-                  connectionHealthRef.current.consecutiveFailures++;
+                  // Update connection health on successful keep-alive
+                  connectionHealthRef.current.lastKeepAlive = Date.now();
+                  connectionHealthRef.current.consecutiveFailures = 0;
                   
-                  let keepAliveFailures = (window as any).__keepAliveFailures || 0;
-                  keepAliveFailures++;
-                  (window as any).__keepAliveFailures = keepAliveFailures;
-                  
-                  console.log(`[KEEP-ALIVE] Failure count: ${keepAliveFailures}/3`);
-                  
-                  if (keepAliveFailures >= 3) {
-                    console.error('❌ [KEEP-ALIVE] Multiple failures - will reconnect on next tab focus');
-                    setIsDeepgramConnected(false);
+                  // Reset failure counter on successful keep-alive
+                  if ((window as any).__keepAliveFailures > 0) {
+                    console.log('✅ [KEEP-ALIVE] Success - resetting failure counter');
                     (window as any).__keepAliveFailures = 0;
-                    if (connectionRef.current) {
-                      try {
-                        connectionRef.current.finish();
-                      } catch (e) {
-                        console.log('[AudioVoiceChat] Error finishing failed connection:', e);
-                      }
-                      connectionRef.current = null;
+                  }
+                }
+              } catch (error) {
+                console.error('⚠️ [KEEP-ALIVE ERROR] Error sending keep-alive ping:', error);
+                
+                // Update connection health on failure
+                connectionHealthRef.current.consecutiveFailures++;
+                
+                let keepAliveFailures = (window as any).__keepAliveFailures || 0;
+                keepAliveFailures++;
+                (window as any).__keepAliveFailures = keepAliveFailures;
+                
+                console.log(`[KEEP-ALIVE] Failure count: ${keepAliveFailures}/3`);
+                
+                if (keepAliveFailures >= 3) {
+                  console.error('❌ [KEEP-ALIVE] Multiple failures - will reconnect on next tab focus');
+                  setIsDeepgramConnected(false);
+                  (window as any).__keepAliveFailures = 0;
+                  if (connectionRef.current) {
+                    try {
+                      connectionRef.current.finish();
+                    } catch (e) {
+                      console.log('[AudioVoiceChat] Error finishing failed connection:', e);
                     }
+                    connectionRef.current = null;
                   }
                 }
               }
-            }, 5000); // Increase interval to 5 seconds for better tab switching compatibility
-          }
+            }
+          }, 5000); // Keep-alive interval
         }
       }
     };
     
     const handleForceStopVoiceChat = () => {
       console.log('[AudioVoiceChat] Force stop voice chat event received - stopping all backend connections');
-      cleanup();
+      cleanupOnPageClose();
       setIsVoiceChatActive(false);
       setIsMuted(true);
       setIsRecording(false);
@@ -899,12 +920,12 @@ export const useAudioVoiceChat = () => {
         clearInterval(keepAliveTimerRef.current);
         keepAliveTimerRef.current = null;
       }
-      cleanup();
+      cleanupOnPageClose();
     };
     
     const handleVoiceModeDisabled = () => {
       console.log('[AudioVoiceChat] Voice mode disabled - stopping voice chat');
-      cleanup();
+      cleanupOnPageClose();
       setIsVoiceChatActive(false);
       setIsMuted(true);
       setIsRecording(false);
@@ -945,13 +966,13 @@ export const useAudioVoiceChat = () => {
       // Only force cleanup if page is actually closing
       if (isPageClosing) {
         console.log('[AudioVoiceChat] Page is closing - force cleaning up voice chat');
-        cleanup();
+        cleanupOnPageClose();
       } else {
         console.log('[AudioVoiceChat] Normal component unmount - not force cleaning up voice chat');
         // Don't force cleanup during normal unmount to allow welcome message to work
       }
     };
-  }, [cleanup]);
+  }, [cleanupOnPageClose]);
 
   return {
     muteInputAudio,

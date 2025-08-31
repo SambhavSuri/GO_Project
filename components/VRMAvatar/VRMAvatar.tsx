@@ -2,8 +2,10 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
 import { VRM, VRMLoaderPlugin, VRMUtils } from '@pixiv/three-vrm';
+import { VRButton } from "three/examples/jsm/webxr/VRButton.js";
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 import { useAudioContext } from '../../logic/AudioProvider';
+// import { VRButton } from '../../static/three.js-master/examples/jsm/webxr/VRButton.js';
 import { 
   ALL_READY_PLAYER_ME_VISEMES,
   getVisemeIntensity,
@@ -42,6 +44,10 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [modelType, setModelType] = useState<'vrm' | 'glb'>('glb');
   
+  // WebXR state
+  const [isInVR, setIsInVR] = useState(false);
+  const [webXRAvailable, setWebXRAvailable] = useState(false);
+  
   // Get audio context for syncing with speech
   const { isAvatarTalking, isProcessingResponse, onGLBAudioStart, onViseme } = useAudioContext();
   
@@ -71,6 +77,82 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
   
   // Lip sync debugger
   const debuggerRef = useRef<LipSyncDebugger | null>(null);
+
+  // 🎯 WebXR Setup for Looking Glass
+  useEffect(() => {
+    if (!rendererRef.current) return;
+
+    console.log('🔮 Setting up WebXR for Looking Glass...');
+    
+        // Check WebXR availability
+    if (navigator.xr) {
+      navigator.xr.isSessionSupported('immersive-vr').then((supported) => {
+        setWebXRAvailable(supported);
+        console.log(`🔮 WebXR VR support: ${supported ? 'Available' : 'Not available'}`);
+        
+        if (supported) {
+          // Create VR button using local import
+          const vrButton = VRButton.createButton(rendererRef.current!);
+          
+          // Style the button for Looking Glass (Fixed size, no stretching)
+          vrButton.style.position = 'absolute';
+          vrButton.style.top = '20px';
+          vrButton.style.right = '20px';
+          vrButton.style.zIndex = '1000';
+          vrButton.style.backgroundColor = '#6366f1';
+          vrButton.style.color = 'white';
+          vrButton.style.border = 'none';
+          vrButton.style.borderRadius = '6px';
+          vrButton.style.padding = '8px 12px';
+          vrButton.style.fontSize = '12px';
+          vrButton.style.fontWeight = '600';
+          vrButton.style.cursor = 'pointer';
+          vrButton.style.boxShadow = '0 2px 4px -1px rgba(0, 0, 0, 0.1)';
+          vrButton.style.height = 'auto';
+          vrButton.style.width = 'auto';
+          vrButton.style.minHeight = '32px';
+          vrButton.style.maxHeight = '40px';
+          vrButton.style.display = 'inline-block';
+          vrButton.style.verticalAlign = 'top';
+          vrButton.style.whiteSpace = 'nowrap';
+          
+          // Customize button text for Looking Glass
+          vrButton.textContent = '🔮 Enter Looking Glass';
+          
+          // Add to the mount container
+          mountRef.current?.appendChild(vrButton);
+          
+          console.log('✅ Looking Glass VR Button added successfully');
+          
+          // WebXR session event handlers
+          rendererRef.current!.xr.addEventListener('sessionstart', () => {
+            console.log('🔮 Looking Glass WebXR session started');
+            setIsInVR(true);
+            
+            // Let Three.js handle the baseLayer automatically - don't set it manually
+            console.log('✅ WebXR session started - Three.js will handle baseLayer');
+          });
+          
+          rendererRef.current!.xr.addEventListener('sessionend', () => {
+            console.log('🔮 Looking Glass WebXR session ended');
+            setIsInVR(false);
+          });
+                 } else {
+           console.warn('⚠️ WebXR VR not supported on this device');
+         }
+       });
+     } else {
+       console.warn('⚠️ WebXR not available in this browser');
+     }
+     
+     // Cleanup function
+     return () => {
+       // Clean up WebXR session if active
+       if (rendererRef.current?.xr.isPresenting) {
+         rendererRef.current.xr.getSession()?.end();
+       }
+     };
+   }, []);
 
   // 🚨 MANUAL TEST: Global function for testing visemes directly
   const testManualViseme = useCallback((visemeName: string = 'viseme_aa', intensity: number = 1.0) => {
@@ -114,22 +196,22 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
       return;
     }
 
-    console.log(`🎭 [VRMAvatar] ====== TTS VISEME SUMMARY ======`);
-    console.log(`📊 [VRMAvatar] Total visemes played: ${playedVisemesRef.current.length}`);
-    console.log(`⏱️  [VRMAvatar] Session duration: ${playedVisemesRef.current[playedVisemesRef.current.length - 1].offset - playedVisemesRef.current[0].offset}ms`);
+    // console.log(`🎭 [VRMAvatar] ====== TTS VISEME SUMMARY ======`);
+    // console.log(`📊 [VRMAvatar] Total visemes played: ${playedVisemesRef.current.length}`);
+    // console.log(`⏱️  [VRMAvatar] Session duration: ${playedVisemesRef.current[playedVisemesRef.current.length - 1].offset - playedVisemesRef.current[0].offset}ms`);
     
     // Create summary table
-    console.log(`🗺️  [VRMAvatar] COMPLETE VISEME MAPPING SEQUENCE:`);
-    playedVisemesRef.current.forEach((viseme, index) => {
-      const phonemeMap: {[key: number]: string} = {
-        0: 'silence', 1: 'æ,ə,ʌ', 2: 'ɑ', 3: 'ɔ', 4: 'ɛ,ʊ', 5: 'ɝ', 
-        6: 'j,i,ɪ', 7: 'w,u', 8: 'o', 9: 'aʊ', 10: 'ɔɪ', 11: 'aɪ', 
-        12: 'h', 13: 'ɹ', 14: 'l', 15: 's,z', 16: 'ʃ,tʃ,dʒ,ʒ', 17: 'ð', 
-        18: 'f,v', 19: 'd,t,n,θ', 20: 'k,g,ŋ', 21: 'p,b,m'
-      };
-      const phoneme = phonemeMap[viseme.azureId] || 'unknown';
-      console.log(`   ${index + 1}. Azure ID ${viseme.azureId} (${phoneme}) → "${viseme.readyPlayerMe}" (${(viseme.intensity * 100).toFixed(0)}%) @ ${viseme.offset.toFixed(0)}ms`);
-    });
+    // console.log(`🗺️  [VRMAvatar] COMPLETE VISEME MAPPING SEQUENCE:`);
+    // playedVisemesRef.current.forEach((viseme, index) => {
+    //   const phonemeMap: {[key: number]: string} = {
+    //     0: 'silence', 1: 'æ,ə,ʌ', 2: 'ɑ', 3: 'ɔ', 4: 'ɛ,ʊ', 5: 'ɝ', 
+    //     6: 'j,i,ɪ', 7: 'w,u', 8: 'o', 9: 'aʊ', 10: 'ɔɪ', 11: 'aɪ', 
+    //     12: 'h', 13: 'ɹ', 14: 'l', 15: 's,z', 16: 'ʃ,tʃ,dʒ,ʒ', 17: 'ð', 
+    //     18: 'f,v', 19: 'd,t,n,θ', 20: 'k,g,ŋ', 21: 'p,b,m'
+    //   };
+    //   const phoneme = phonemeMap[viseme.azureId] || 'unknown';
+    //   console.log(`   ${index + 1}. Azure ID ${viseme.azureId} (${phoneme}) → "${viseme.readyPlayerMe}" (${(viseme.intensity * 100).toFixed(0)}%) @ ${viseme.offset.toFixed(0)}ms`);
+    // });
     
     // Summary statistics
     const uniqueVisemes = Array.from(new Set(playedVisemesRef.current.map(v => v.readyPlayerMe)));
@@ -151,6 +233,7 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
     console.log(`🚫 [TIMING] Cancelling ${scheduledVisemesRef.current.size} scheduled visemes`);
     scheduledVisemesRef.current.forEach((timeout) => {
       clearTimeout(timeout);
+      console.log(`🚫 [TIMING] Cancelled scheduled viseme ${timeout}`);
     });
     scheduledVisemesRef.current.clear();
     audioStartTimeRef.current = null;
@@ -159,22 +242,22 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
   // 🎯 PROPER TIMING: Professional lip sync system with real audioOffset synchronization
   const handleDirectViseme = useCallback((visemeId: number, offset: number) => {
     // 🚨 AZURE VISEME ID LOGGING - Track all Azure Speech Service visemes
-    console.log(`🔥 [VRMAvatar] AZURE VISEME RECEIVED: ID=${visemeId}, offset=${offset}ms`);
-    console.log(`📊 [VRMAvatar] Azure Viseme Stats: {id: ${visemeId}, offset: ${offset}ms, received: ${Date.now()}, modelReady: ${!!modelRef.current}}`);
+    // console.log(`🔥 [VRMAvatar] AZURE VISEME RECEIVED: ID=${visemeId}, offset=${offset}ms`);
+    // console.log(`📊 [VRMAvatar] Azure Viseme Stats: {id: ${visemeId}, offset: ${offset}ms, received: ${Date.now()}, modelReady: ${!!modelRef.current}}`);
     
     // 🚨 ENHANCED DEBUGGING: Check each blocking condition separately
     const modelTypeOK = modelType === 'glb';
     const modelRefOK = !!modelRef.current;
     const animationEnabledOK = visemeAnimationEnabledRef.current;
     
-    console.log(`🔍 [DEBUGGING] Viseme ${visemeId} Checks: modelType='${modelType}'(${modelTypeOK}), modelRef=${modelRefOK}, animEnabled=${animationEnabledOK}`);
+    //console.log(`🔍 [DEBUGGING] Viseme ${visemeId} Checks: modelType='${modelType}'(${modelTypeOK}), modelRef=${modelRefOK}, animEnabled=${animationEnabledOK}`);
     
     if (!modelTypeOK || !modelRefOK || !animationEnabledOK) {
       console.error(`❌ [VRMAvatar] AZURE VISEME BLOCKED: ID=${visemeId} - modelType=${modelType}(${modelTypeOK}), model=${modelRefOK}, enabled=${animationEnabledOK}`);
       return;
     }
     
-    console.log(`✅ [DEBUGGING] Viseme ${visemeId} PASSED all checks - proceeding with TIMING-BASED application`);
+    //console.log(`✅ [DEBUGGING] Viseme ${visemeId} PASSED all checks - proceeding with TIMING-BASED application`);
     
     
     // 🎯 AUDIO OFFSET TIMING: Schedule viseme based on proper audioOffset timing
@@ -204,8 +287,8 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
     const readyPlayerMeViseme = convertAzureVisemeToReadyPlayerMe(visemeData, previousVisemeRef.current);
     
     // 🎯 DETAILED AZURE VISEME MAPPING LOGGING
-    console.log(`🗺️ [VRMAvatar] AZURE VISEME MAPPING: ${visemeId} → ${readyPlayerMeViseme.visemeName} (intensity: ${readyPlayerMeViseme.intensity}) SCHEDULED for ${offset}ms`);
-    console.log(`⏰ [VRMAvatar] TIMING: Viseme ${visemeId} will be applied ${offset}ms after audio starts playing`);
+    // console.log(`🗺️ [VRMAvatar] AZURE VISEME MAPPING: ${visemeId} → ${readyPlayerMeViseme.visemeName} (intensity: ${readyPlayerMeViseme.intensity}) SCHEDULED for ${offset}ms`);
+    // console.log(`⏰ [VRMAvatar] TIMING: Viseme ${visemeId} will be applied ${offset}ms after audio starts playing`);
     
     // Mirror to Looking Glass if callback provided  
     if (onVisemeMirror) {
@@ -225,7 +308,7 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
           if (audioStartTimeRef.current) {
             clearInterval(waitForAudio);
             const delayMs = Math.max(0, (audioStartTimeRef.current + offset) - Date.now());
-            console.log(`⏰ [VRMAvatar] Audio started! Scheduling viseme ${visemeId} in ${delayMs}ms`);
+            //console.log(`⏰ [VRMAvatar] Audio started! Scheduling viseme ${visemeId} in ${delayMs}ms`);
             
             const timeout = setTimeout(() => {
               applyVisemeAtCorrectTime(visemeId, readyPlayerMeViseme, offset);
@@ -251,7 +334,7 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
     
     // 🎯 APPLY VISEME: The actual application function
     const applyVisemeAtCorrectTime = (id: number, viseme: any, originalOffset: number) => {
-      console.log(`🎯 [VRMAvatar] APPLYING TIMED VISEME: ${id} → ${viseme.visemeName} at correct time (${originalOffset}ms offset)`);
+      //console.log(`🎯 [VRMAvatar] APPLYING TIMED VISEME: ${id} → ${viseme.visemeName} at correct time (${originalOffset}ms offset)`);
       
       // Clear all visemes first for clean state
       const allVisemes = [
@@ -283,7 +366,7 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
         offset: originalOffset
       });
       
-      console.log(`✅ [VRMAvatar] TIMED VISEME APPLIED: ${viseme.visemeName} at ${enhancedIntensity.toFixed(2)} intensity`);
+      //console.log(`✅ [VRMAvatar] TIMED VISEME APPLIED: ${viseme.visemeName} at ${enhancedIntensity.toFixed(2)} intensity`);
       
       // Clean up this scheduled viseme
       scheduledVisemesRef.current.delete(id);
@@ -361,7 +444,7 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
       return; // Skip repeated applications
     }
     
-    console.log(`🎯 [setMorphTargetDirect] STARTING: ${targetName} = ${value.toFixed(3)}`);
+    //console.log(`🎯 [setMorphTargetDirect] STARTING: ${targetName} = ${value.toFixed(3)}`);
     
     // Apply to ALL SkinnedMesh objects for consistent raw mode
     let appliedCount = 0;
@@ -378,7 +461,7 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
           
           // Log significant changes in raw mode
           if (Math.abs(previousValue - value) > 0.1) {
-            console.log(`🚨 [RAW] Direct set ${targetName}[${index}]: ${previousValue.toFixed(2)} → ${value.toFixed(2)}`);
+            //console.log(`🚨 [RAW] Direct set ${targetName}[${index}]: ${previousValue.toFixed(2)} → ${value.toFixed(2)}`);
           }
         }
       }
@@ -388,10 +471,38 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
       console.warn(`⚠️ [RAW] ${targetName} not found in any mesh!`);
     }
     
-    console.log(`✅ [setMorphTargetDirect] COMPLETED: ${targetName} = ${value.toFixed(3)} applied to ${appliedCount} meshes`);
+    //console.log(`✅ [setMorphTargetDirect] COMPLETED: ${targetName} = ${value.toFixed(3)} applied to ${appliedCount} meshes`);
     
     // Track last applied to prevent spam
     lastAppliedVisemeRef.current = { name: targetName, value, timestamp: now };
+  };
+
+  // Function to test if removing normal maps fixes WebGL errors
+  const testRemoveNormalMaps = () => {
+    if (!modelRef.current) {
+      console.error('❌ [NORMAL MAP TEST] No model available');
+      return;
+    }
+    
+    console.log('🧪 [NORMAL MAP TEST] Removing all normal maps to test WebGL error fix...');
+    
+    let removedCount = 0;
+    modelRef.current.traverse((child) => {
+      if (child instanceof THREE.Mesh && child.material) {
+        const material = Array.isArray(child.material) ? child.material[0] : child.material;
+        
+        if (material instanceof THREE.MeshStandardMaterial || material instanceof THREE.MeshPhysicalMaterial) {
+          if (material.normalMap) {
+            console.log(`🧪 [NORMAL MAP TEST] Removing normal map from ${child.name}`);
+            material.normalMap = null;
+            material.normalScale.set(1, 1);
+            removedCount++;
+          }
+        }
+      }
+    });
+    
+    console.log(`✅ [NORMAL MAP TEST] Removed ${removedCount} normal maps. If WebGL errors stop, JPEG normal maps were the issue.`);
   };
 
   // Expose test function globally (after setMorphTargetDirect declaration)
@@ -419,6 +530,7 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
           console.log(`⏰ [TIMING DEBUG] Time since audio start: ${Date.now() - audioStart}ms`);
         }
       };
+      (window as any).testRemoveNormalMaps = testRemoveNormalMaps;
       (window as any).testVisemeSwitch = () => {
         console.log('🚨 [RAW TEST] Testing Azure TTS viseme switching: PP ↔ I');
         let isI = false;
@@ -457,6 +569,8 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
       console.log('⏰ [VRMAvatar] TIMING DEBUG FUNCTIONS:');
       console.log('  window.showAudioTiming() - Show current timing state');
       console.log('  window.cancelScheduledVisemes() - Cancel all scheduled visemes');
+      console.log('🔧 [VRMAvatar] WEBGL DEBUG FUNCTIONS:');
+      console.log('  window.testRemoveNormalMaps() - Remove normal maps to test WebGL error fix');
     }
   }, [testManualViseme, displayVisemeSummary]);
 
@@ -695,13 +809,42 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
         child.castShadow = true;
         child.receiveShadow = true;
         
+        // Fix JPEG normal maps that cause WebGL INVALID_OPERATION errors
+        if (child.material) {
+          const material = Array.isArray(child.material) ? child.material[0] : child.material;
+          
+          if (material instanceof THREE.MeshStandardMaterial || material instanceof THREE.MeshPhysicalMaterial) {
+            // Check if normal map is JPEG and remove it to prevent WebGL errors
+            if (material.normalMap) {
+              const normalMap = material.normalMap;
+              if (normalMap.image && normalMap.image.src) {
+                const isJPEG = normalMap.image.src.toLowerCase().includes('.jpg') || 
+                              normalMap.image.src.toLowerCase().includes('.jpeg') ||
+                              normalMap.image.src.toLowerCase().includes('image/jpeg');
+                
+                if (isJPEG) {
+                  console.warn(`⚠️ [MATERIAL FIX] Removing JPEG normal map from ${child.name} to prevent WebGL errors`);
+                  material.normalMap = null;
+                  material.normalScale.set(1, 1); // Reset normal scale
+                }
+              }
+            }
+            
+            // Ensure proper color space for textures (newer Three.js versions)
+            if (material.map) material.map.colorSpace = THREE.SRGBColorSpace;
+            if (material.normalMap) material.normalMap.colorSpace = THREE.LinearSRGBColorSpace;
+            if (material.roughnessMap) material.roughnessMap.colorSpace = THREE.LinearSRGBColorSpace;
+            if (material.metalnessMap) material.metalnessMap.colorSpace = THREE.LinearSRGBColorSpace;
+          }
+        }
+        
         // Check if this is an eye-related mesh and store its original transform
         const meshName = child.name.toLowerCase();
         const isEyeMesh = meshName.includes('eye') || meshName.includes('pupil') || meshName.includes('iris') || 
                          meshName.includes('cornea') || meshName.includes('eyeball');
         
         if (isEyeMesh) {
-          console.log(`👁️ Found eye mesh: ${child.name}, preserving original transform`);
+          //console.log(`👁️ Found eye mesh: ${child.name}, preserving original transform`);
           eyeObjectsRef.current.set(child.uuid, {
             object: child,
             originalPosition: child.position.clone(),
@@ -772,7 +915,7 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
       }
     });
     
-    console.log('✅ Material fixes applied, eye objects preserved');
+    //console.log('✅ Material fixes applied, eye objects preserved');
   };
 
   // Load animations for GLB models
@@ -867,7 +1010,7 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
       }
     });
     
-    console.log(`🎬 Retargeted animation with ${tracks.length} tracks (eye bones excluded)`);
+    //console.log(`🎬 Retargeted animation with ${tracks.length} tracks (eye bones excluded)`);
     return new THREE.AnimationClip(clip.name, clip.duration, tracks, clip.blendMode);
   };
 
@@ -926,12 +1069,12 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
     scene.background = new THREE.Color(0xf0f0f0);
     sceneRef.current = scene;
     
-    // Camera setup
+    // Camera setup with proper XR clipping planes
     const camera = new THREE.PerspectiveCamera(
-      30,
+      70, // Better FOV for XR
       width / height,
-      0.1,
-      20
+      0.01, // Much smaller near plane to prevent clipping
+      5000  // Larger far plane for XR
     );
     camera.position.set(0, 1.4, 3);
     cameraRef.current = camera;
@@ -940,10 +1083,12 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
     const renderer = new THREE.WebGLRenderer({ 
       antialias: true,
       alpha: true,
-      powerPreference: "high-performance"
+      powerPreference: "high-performance",
+      context: undefined, // Let Three.js choose the best context
+      failIfMajorPerformanceCaveat: false // Allow fallback to WebGL1 if needed
     });
     renderer.setSize(width, height);
-    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // Limit pixel ratio for XR
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     
@@ -951,6 +1096,7 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.2;
+    renderer.xr.enabled = true;
     
     rendererRef.current = renderer;
     
@@ -1034,7 +1180,7 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
           // Load animations
           await loadAnimationsForGLB();
           
-          // Start with idle animation
+          // with idle animation
           playAnimation('idle');
           
           setIsLoading(false);
@@ -1098,7 +1244,7 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
           // Initialize lip sync debugger
           debuggerRef.current = new LipSyncDebugger(model);
           const report = debuggerRef.current.generateReport();
-          console.log(report);
+          //console.log(report);
           
           // Check viseme availability
           const visemeCheck = debuggerRef.current.checkReadyPlayerMeVisemes();

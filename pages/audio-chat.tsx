@@ -1,3 +1,4 @@
+'use client'
 import React from 'react';
 import AudioChatWrapper from '../AudioChat';
 import { WebSearchProvider } from '../logic/WebSearchContext';
