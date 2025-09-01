@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
 import { VRM, VRMLoaderPlugin, VRMUtils } from '@pixiv/three-vrm';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
+import { VRButton } from 'three/examples/jsm/webxr/VRButton.js';
 import { useAudioContext } from '../../logic/AudioProvider';
 import { 
   ALL_READY_PLAYER_ME_VISEMES,
@@ -987,6 +988,206 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.2;
     
+    // Enable WebXR for Looking Glass support
+    renderer.xr.enabled = true;
+    
+    // Initialize Looking Glass WebXR with npm package (Three.js 168 compatibility)
+    const initLookingGlassAndCreateButton = async () => {
+      try {
+        // Check if VR button already exists to prevent duplicates
+        const existingButton = document.querySelector('[data-vr-button]');
+        if (existingButton) {
+          console.log('🔄 VR Button already exists, skipping creation');
+          return;
+        }
+
+        console.log('🔄 Initializing Looking Glass WebXR with npm package (Three.js 168)...');
+        
+        // Import the Looking Glass WebXR package dynamically (npm approach)
+        const { LookingGlassWebXRPolyfill, LookingGlassConfig } = await import('@lookingglass/webxr');
+        
+        console.log('✅ Looking Glass WebXR npm package imported');
+        
+        // Configure Looking Glass settings (matching reference code)
+        const config = LookingGlassConfig;
+        config.targetY = 1;
+        config.targetZ = 0;
+        config.targetDiam = 1.5;
+        config.depthiness = 0.8;
+        config.fovy = (40 * Math.PI) / 180;
+        
+        // Initialize the polyfill
+        new LookingGlassWebXRPolyfill();
+        
+        console.log('✅ Looking Glass WebXR polyfill initialized with config:', config);
+        
+        // Wait for polyfill to fully set up WebXR API and sessions
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        // Ensure WebGL context is XR compatible before creating VR button
+        try {
+          const gl = renderer.getContext();
+          if (gl && gl.makeXRCompatible) {
+            await gl.makeXRCompatible();
+            console.log('✅ WebGL context made XR compatible');
+          }
+        } catch (error) {
+          console.log('⚠️ makeXRCompatible not needed or failed:', error);
+        }
+        
+        // Debug: Check if WebXR is properly available
+        console.log('🔍 WebXR Debug:', {
+          hasNavigatorXR: !!navigator.xr,
+          hasIsSessionSupported: !!(navigator.xr && navigator.xr.isSessionSupported),
+          rendererXREnabled: renderer.xr.enabled
+        });
+        
+        // Test WebXR session support
+        if (navigator.xr && navigator.xr.isSessionSupported) {
+          try {
+            const isSupported = await navigator.xr.isSessionSupported('immersive-vr');
+            console.log('🔍 immersive-vr support:', isSupported);
+          } catch (error) {
+            console.log('🔍 Error checking immersive-vr support:', error);
+          }
+        }
+        
+        // Remove any existing VR buttons first to prevent duplicates
+        const existingVRButtons = document.querySelectorAll('button[style*="background"]');
+        existingVRButtons.forEach(button => {
+          if (button.textContent && (
+            button.textContent.includes('Enter VR') || 
+            button.textContent.includes('Looking Glass') ||
+            button.textContent.includes('ENTER VR')
+          )) {
+            button.remove();
+          }
+        });
+
+        // NOW create VR button after polyfill is ready
+        const vrButton = VRButton.createButton(renderer);
+        
+        // Add unique identifier to prevent duplicates
+        vrButton.setAttribute('data-vr-button', 'true');
+        vrButton.setAttribute('data-main-vr-button', 'true');
+        
+        console.log('✅ VR Button created after polyfill initialization');
+        
+        // Professional styling matching website theme
+        vrButton.style.position = 'fixed';
+        vrButton.style.bottom = '24px';
+        vrButton.style.right = '24px';
+        vrButton.style.zIndex = '9999';
+        vrButton.style.padding = '12px 20px';
+        vrButton.style.fontSize = '14px';
+        vrButton.style.fontWeight = '500';
+        vrButton.style.fontFamily = 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+        vrButton.style.borderRadius = '12px';
+        vrButton.style.backgroundColor = 'rgba(17, 24, 39, 0.95)'; // Dark gray matching website
+        vrButton.style.backdropFilter = 'blur(12px)';
+        (vrButton.style as any).webkitBackdropFilter = 'blur(12px)';
+        vrButton.style.color = '#ffffff';
+        vrButton.style.border = '1px solid rgba(75, 85, 99, 0.5)';
+        vrButton.style.boxShadow = '0 10px 25px rgba(0, 0, 0, 0.25), 0 4px 10px rgba(0, 0, 0, 0.1)';
+        vrButton.style.cursor = 'pointer';
+        vrButton.style.minHeight = '48px';
+        vrButton.style.minWidth = '140px';
+        vrButton.style.display = 'inline-flex';
+        vrButton.style.alignItems = 'center';
+        vrButton.style.justifyContent = 'center';
+        vrButton.style.gap = '8px';
+        vrButton.style.whiteSpace = 'nowrap';
+        vrButton.style.transition = 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)';
+        vrButton.style.userSelect = 'none';
+        vrButton.style.textDecoration = 'none';
+        vrButton.style.outline = 'none';
+        
+        // Add icon to the button text
+        if (vrButton.textContent) {
+          vrButton.innerHTML = `
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="margin-right: 6px;">
+              <path d="M12 2C13.1 2 14 2.9 14 4V8C14 9.1 13.1 10 12 10C10.9 10 10 9.1 10 8V4C10 2.9 10.9 2 12 2ZM21 9V7C21 6.45 20.55 6 20 6S19 6.45 19 7V9C19 13.97 16.39 18.25 12.5 19.74V22H11.5V19.74C7.61 18.25 5 13.97 5 9V7C5 6.45 4.55 6 4 6S3 6.45 3 7V9C3 14.5 6.82 19.24 12 20.92C17.18 19.24 21 14.5 21 9Z" fill="currentColor"/>
+            </svg>
+            ${vrButton.textContent}
+          `;
+        }
+        
+        // Add professional hover effects
+        vrButton.addEventListener('mouseenter', () => {
+          vrButton.style.backgroundColor = 'rgba(31, 41, 55, 0.98)';
+          vrButton.style.transform = 'translateY(-2px)';
+          vrButton.style.boxShadow = '0 20px 40px rgba(0, 0, 0, 0.3), 0 8px 16px rgba(0, 0, 0, 0.15)';
+          vrButton.style.borderColor = 'rgba(107, 114, 128, 0.8)';
+        });
+        
+        vrButton.addEventListener('mouseleave', () => {
+          vrButton.style.backgroundColor = 'rgba(17, 24, 39, 0.95)';
+          vrButton.style.transform = 'translateY(0)';
+          vrButton.style.boxShadow = '0 10px 25px rgba(0, 0, 0, 0.25), 0 4px 10px rgba(0, 0, 0, 0.1)';
+          vrButton.style.borderColor = 'rgba(75, 85, 99, 0.5)';
+        });
+        
+        vrButton.addEventListener('mousedown', () => {
+          vrButton.style.transform = 'translateY(0) scale(0.98)';
+        });
+        
+        vrButton.addEventListener('mouseup', () => {
+          vrButton.style.transform = 'translateY(-2px) scale(1)';
+        });
+        
+        // Append VR button to body
+        document.body.appendChild(vrButton);
+        
+        // Hide any other Looking Glass buttons that might appear
+        setTimeout(() => {
+          const allButtons = document.querySelectorAll('button');
+          allButtons.forEach(button => {
+            if (button !== vrButton && button.textContent && (
+              button.textContent.includes('Enter Looking Glass') ||
+              button.textContent.includes('ENTER LOOKING GLASS') ||
+              (button.textContent.includes('Enter VR') && !button.hasAttribute('data-main-vr-button'))
+            )) {
+              button.style.display = 'none';
+              console.log('🔄 Hiding duplicate VR button:', button.textContent);
+            }
+          });
+        }, 1000);
+        
+        // Add session event listeners (matching reference code)
+        const StartXRSession = () => {
+          console.log('🥽 Looking Glass XR Session Started');
+          // Reposition camera for optimal Looking Glass viewing
+          if (cameraRef.current) {
+            cameraRef.current.position.set(0.8, 1.4, 3.5);
+            cameraRef.current.lookAt(0, 1, 0);
+          }
+          if (controlsRef.current) {
+            controlsRef.current.target.set(0, 1, 0);
+            controlsRef.current.update();
+          }
+        };
+
+        const EndXRSession = () => {
+          console.log('XR Session Ended. Reloading page...');
+          if (typeof window !== 'undefined') {
+            window.location.reload();
+          }
+        };
+
+        renderer.xr.addEventListener('sessionstart', StartXRSession);
+        renderer.xr.addEventListener('sessionend', EndXRSession);
+        
+        // Store vrButton reference for cleanup
+        (renderer as any)._vrButton = vrButton;
+        
+      } catch (error) {
+        console.error('❌ Error initializing Looking Glass WebXR:', error);
+      }
+    };
+    
+    // Initialize Looking Glass support and create button after polyfill is ready
+    initLookingGlassAndCreateButton();
+    
     rendererRef.current = renderer;
     
     mountRef.current.appendChild(renderer.domElement);
@@ -1221,6 +1422,35 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
     
     // Cleanup
     return () => {
+      // Remove VR button from DOM (check both stored reference and any existing buttons)
+      const vrButton = (renderer as any)._vrButton;
+      if (vrButton && vrButton.parentNode) {
+        vrButton.parentNode.removeChild(vrButton);
+      }
+      
+      // Also remove any VR buttons with our data attribute (safety cleanup)
+      const allVRButtons = document.querySelectorAll('[data-vr-button], [data-main-vr-button]');
+      allVRButtons.forEach(button => {
+        if (button.parentNode) {
+          button.parentNode.removeChild(button);
+        }
+      });
+      
+      // Clean up any other VR buttons that might have been created
+      const allButtons = document.querySelectorAll('button');
+      allButtons.forEach(button => {
+        if (button.textContent && (
+          button.textContent.includes('Enter VR') || 
+          button.textContent.includes('Looking Glass') ||
+          button.textContent.includes('ENTER VR') ||
+          button.textContent.includes('ENTER LOOKING GLASS')
+        )) {
+          if (button.parentNode) {
+            button.parentNode.removeChild(button);
+          }
+        }
+      });
+      
       // Stop speaking animation
       if (speakingIntervalRef.current) {
         clearInterval(speakingIntervalRef.current);
@@ -1401,6 +1631,7 @@ export const VRMAvatar: React.FC<VRMAvatarProps> = ({
           : (modelType === 'glb' ? 'Ready (Lips Sealed)' : 'Ready')
         }
       </div>
+
 
 
     </div>

@@ -3,16 +3,9 @@ import {
 } from 'three';
 
 /**
- * @module ColorifyShader
- * @three_import import { ColorifyShader } from 'three/addons/shaders/ColorifyShader.js';
+ * Colorify shader
  */
 
-/**
- * Colorify shader.
- *
- * @constant
- * @type {ShaderMaterial~Shader}
- */
 const ColorifyShader = {
 
 	name: 'ColorifyShader',

@@ -31,53 +31,18 @@ void main() {
 
 }`;
 
-/**
- * A XR module that manages the access to the Depth Sensing API.
- */
 class WebXRDepthSensing {
 
-	/**
-	 * Constructs a new depth sensing module.
-	 */
 	constructor() {
 
-		/**
-		 * A texture representing the depth of the user's environment.
-		 *
-		 * @type {?Texture}
-		 */
 		this.texture = null;
-
-		/**
-		 * A plane mesh for visualizing the depth texture.
-		 *
-		 * @type {?Mesh}
-		 */
 		this.mesh = null;
 
-		/**
-		 * The depth near value.
-		 *
-		 * @type {number}
-		 */
 		this.depthNear = 0;
-
-		/**
-		 * The depth near far.
-		 *
-		 * @type {number}
-		 */
 		this.depthFar = 0;
 
 	}
 
-	/**
-	 * Inits the depth sensing module
-	 *
-	 * @param {WebGLRenderer} renderer - The renderer.
-	 * @param {XRWebGLDepthInformation} depthData - The XR depth data.
-	 * @param {XRRenderState} renderState - The XR render state.
-	 */
 	init( renderer, depthData, renderState ) {
 
 		if ( this.texture === null ) {
@@ -87,7 +52,7 @@ class WebXRDepthSensing {
 			const texProps = renderer.properties.get( texture );
 			texProps.__webglTexture = depthData.texture;
 
-			if ( ( depthData.depthNear !== renderState.depthNear ) || ( depthData.depthFar !== renderState.depthFar ) ) {
+			if ( ( depthData.depthNear != renderState.depthNear ) || ( depthData.depthFar != renderState.depthFar ) ) {
 
 				this.depthNear = depthData.depthNear;
 				this.depthFar = depthData.depthFar;
@@ -100,12 +65,6 @@ class WebXRDepthSensing {
 
 	}
 
-	/**
-	 * Returns a plane mesh that visualizes the depth texture.
-	 *
-	 * @param {ArrayCamera} cameraXR - The XR camera.
-	 * @return {?Mesh} The plane mesh.
-	 */
 	getMesh( cameraXR ) {
 
 		if ( this.texture !== null ) {
@@ -133,9 +92,6 @@ class WebXRDepthSensing {
 
 	}
 
-	/**
-	 * Resets the module
-	 */
 	reset() {
 
 		this.texture = null;
@@ -143,11 +99,6 @@ class WebXRDepthSensing {
 
 	}
 
-	/**
-	 * Returns a texture representing the depth of the user's environment.
-	 *
-	 * @return {?Texture} The depth texture.
-	 */
 	getDepthTexture() {
 
 		return this.texture;

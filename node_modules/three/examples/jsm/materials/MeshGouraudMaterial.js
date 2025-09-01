@@ -319,8 +319,6 @@ class MeshGouraudMaterial extends ShaderMaterial {
 
 		super();
 
-		console.warn( 'THREE.MeshGouraudMaterial: MeshGouraudMaterial has been deprecated and will be removed with r183. Use THREE.MeshLambertMaterial instead.' ); // @deprecated r173
-
 		this.isMeshGouraudMaterial = true;
 
 		this.type = 'MeshGouraudMaterial';

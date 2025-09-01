@@ -1,38 +1,16 @@
-/**
- * Data structure for the renderer. It allows defining values
- * with chained, hierarchical keys. Keys are meant to be
- * objects since the module internally works with Weak Maps
- * for performance reasons.
- *
- * @private
- */
-class ChainMap {
+export default class ChainMap {
 
-	/**
-	 * Constructs a new Chain Map.
-	 */
 	constructor() {
 
-		/**
-		 * The root Weak Map.
-		 *
-		 * @type {WeakMap}
-		 */
 		this.weakMap = new WeakMap();
 
 	}
 
-	/**
-	 * Returns the value for the given array of keys.
-	 *
-	 * @param {Array<Object>} keys - List of keys.
-	 * @return {any} The value. Returns `undefined` if no value was found.
-	 */
 	get( keys ) {
 
 		let map = this.weakMap;
 
-		for ( let i = 0; i < keys.length - 1; i ++ ) {
+		for ( let i = 0; i < keys.length; i ++ ) {
 
 			map = map.get( keys[ i ] );
 
@@ -44,18 +22,11 @@ class ChainMap {
 
 	}
 
-	/**
-	 * Sets the value for the given keys.
-	 *
-	 * @param {Array<Object>} keys - List of keys.
-	 * @param {any} value - The value to set.
-	 * @return {ChainMap} A reference to this Chain Map.
-	 */
 	set( keys, value ) {
 
 		let map = this.weakMap;
 
-		for ( let i = 0; i < keys.length - 1; i ++ ) {
+		for ( let i = 0; i < keys.length; i ++ ) {
 
 			const key = keys[ i ];
 
@@ -65,23 +36,15 @@ class ChainMap {
 
 		}
 
-		map.set( keys[ keys.length - 1 ], value );
-
-		return this;
+		return map.set( keys[ keys.length - 1 ], value );
 
 	}
 
-	/**
-	 * Deletes a value for the given keys.
-	 *
-	 * @param {Array<Object>} keys - The keys.
-	 * @return {boolean} Returns `true` if the value has been removed successfully and `false` if the value has not be found.
-	 */
 	delete( keys ) {
 
 		let map = this.weakMap;
 
-		for ( let i = 0; i < keys.length - 1; i ++ ) {
+		for ( let i = 0; i < keys.length; i ++ ) {
 
 			map = map.get( keys[ i ] );
 
@@ -94,5 +57,3 @@ class ChainMap {
 	}
 
 }
-
-export default ChainMap;

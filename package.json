@@ -10,14 +10,15 @@
   },
   "dependencies": {
     "@deepgram/sdk": "^3.0.0",
+    "@lookingglass/webxr": "^0.6.0",
     "@pixiv/three-vrm": "^3.4.2",
-    "@types/three": "^0.178.1",
+    "@types/three": "^0.168.0",
     "lucide-react": "^0.263.1",
     "microsoft-cognitiveservices-speech-sdk": "^1.45.0",
     "next": "^14.0.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "three": "^0.178.0"
+    "three": "^0.168.0"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

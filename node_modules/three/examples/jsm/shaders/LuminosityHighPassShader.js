@@ -3,19 +3,15 @@ import {
 } from 'three';
 
 /**
- * @module LuminosityHighPassShader
- * @three_import import { LuminosityHighPassShader } from 'three/addons/shaders/LuminosityHighPassShader.js';
+ * Luminosity
+ * http://en.wikipedia.org/wiki/Luminosity
  */
 
-/**
- * Luminosity high pass shader.
- *
- * @constant
- * @type {ShaderMaterial~Shader}
- */
 const LuminosityHighPassShader = {
 
 	name: 'LuminosityHighPassShader',
+
+	shaderID: 'luminosityHighPass',
 
 	uniforms: {
 
